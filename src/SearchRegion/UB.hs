@@ -27,6 +27,8 @@ makeLenses ''UB
 
 
 newtype ExploredUB = ExploredUB {fromExplored :: UB }
+instance Show ExploredUB where
+    show (ExploredUB ub) = "zexp=" ++ show ub
 
 {-| TODO use a min heap -}
 data SRUB = SRUB {_srub :: ![UB]}
@@ -144,6 +146,9 @@ selectZone (SRUB sr) = ExploredUB $ minimumBy (compare `on` (fst . view szMaxPro
 
 emptySR :: SRUB -> Bool
 emptySR (SRUB sr) = null sr
+
+srSize :: SRUB -> Int
+srSize (SRUB sr) = length sr
 
 
        

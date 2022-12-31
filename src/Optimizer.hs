@@ -36,16 +36,19 @@ optimize gbnds = do
         then pure ()
         else do
             cutval <- use bestVal
-            --(exp,reopt,opteff) <- (,,) <$> use exploreMdl <*> use reoptMdl <*> use optEff
             let zexp = selectZone sr
                 (_,pdir) = _szMaxProj $ fromExplored zexp
+            logM $ "exploring: " ++ show zexp ++ " size=" ++ show (srSize sr)
             ptM <- zoom exploreMdl $ do 
                     setProj pdir
                     setCut $ cutval - 0.5
                     setLocalUpperBoundM zexp
                     solveM
             case ptM of
-                Nothing -> searchRegion %= updateSR gbnds zexp pdir ptM
+                Nothing -> do
+                    logM $ "\t X"
+                    searchRegion %= updateSR gbnds zexp pdir ptM
+                    optimize gbnds
                 Just y -> do
                     -- found a feasible point improving the best value
                     yNDM <- zoom reoptMdl $ do
@@ -59,11 +62,15 @@ optimize gbnds = do
                                                 solveM
                             optval <- zoom optEff getObjValueM
                             bestVal %= max optval
+                            newval <- use bestVal
+                            logM $ "\t" ++ show newsolution ++ " best=" ++ show newval                                                
                             searchRegion %= updateSR gbnds zexp pdir newsolution
+                            optimize gbnds
 
                     
             
-
+logM :: (MonadIO m) => String -> StateT a m ()
+logM text = liftIO $ putStrLn text
 
 
 
