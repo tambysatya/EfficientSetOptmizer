@@ -49,6 +49,10 @@ mkZone :: GlobalBounds -> UB
 mkZone (yA,yI) = UB (fmap (+1) $ toBound yA) (A.listArray (1,p) $ take p $ repeat []) (0,ProjDir 2)
     where (1,p) = A.bounds $ toBound yA
 
+updateSR :: GlobalBounds -> ExploredUB -> ProjDir -> Maybe Point -> SRUB -> SRUB
+updateSR gbnds zexp pdir Nothing (SRUB sr) = SRUB $ catMaybes $ updateZoneNothing gbnds zexp pdir <$> sr
+updateSR gbnds zexp pdir@(ProjDir k) (Just pt) (SRUB sr) = SRUB $ sr >>= updateZoneJustWithRR gbnds zexp pdir lb pt 
+    where lb = _ptPerf pt A.! k
 
 {-| Updates a zone z and returns the potentially
       - Nothing (deleted by a reduction rule)
@@ -72,19 +76,19 @@ updateZoneNothing gbnds (ExploredUB zexp) pdir  z
 
 
 -- TODO strict evaluation
-updateZoneJustWithRR :: GlobalBounds -> ExploredUB -> ProjDir -> Double -> UB -> Point -> ChildDir -> Maybe UB
-updateZoneJustWithRR gbnds zexp pdir lb_l ub  pt cdir = updateZoneJust gbnds ub pt cdir
-                                 >>= applyReductionRule zexp pdir lb_l 
-updateZoneJust :: GlobalBounds -> UB -> Point -> ChildDir -> Maybe UB
-updateZoneJust gbnds ub  pt cdir 
-        | pt `domS` ub = child gbnds pt ub cdir 
-        | pt `domL` ub = Just $ updateDefiningPoints pt ub
-        | otherwise = Just ub
- 
+updateZoneJustWithRR :: GlobalBounds -> ExploredUB -> ProjDir -> Double ->Point ->  UB -> [UB]
+updateZoneJustWithRR gbnds zexp pdir lb_l pt ub = catMaybes $ 
+                                 applyReductionRule zexp pdir lb_l <$> updateZoneJust gbnds ub pt
+updateZoneJust :: GlobalBounds -> UB -> Point -> [UB]
+updateZoneJust gbnds ub  pt 
+        | pt `domS` ub = catMaybes [child gbnds pt ub i | i <- ChildDir <$> [1..p]]
+        | pt `domL` ub = [updateDefiningPoints pt ub]
+        | otherwise = [ub]
+    where p = dimension ub
 
 {-| Applies the reduction rule if a point have been found y have been found after looking for 
     improving component k by searching in direction l:
-    If child-l <= zexp-l (projection is included
+    If child-l <= zexp-l (projection is included:
     and pt_l >= child_l 
     then, no point in child can improve the componnent k
  -}

@@ -25,6 +25,8 @@ dependencies:
 - TamVan19
 - lens  >= 4.19 && < 5
 - array
+- mtl
+
 
 
 ghc-options:
