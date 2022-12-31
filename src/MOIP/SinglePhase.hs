@@ -23,6 +23,11 @@ data ExploreMdl = ExploreMdl MOIPScheme ProjDir IloRange -- Finds a point (not n
 data ReoptMdl = ReoptMdl MOIPScheme -- Verifies if a point is nondominated
 data OptEff = OptEff MOIPScheme IloRange -- Optimise over the efficient solutions associated to a given weighted sum
 
+class HasCut mdl where
+    getCut :: mdl -> IloRange
+instance HasCut ExploreMdl where getCut (ExploreMdl _ _ cut) = cut
+instance HasCut OptEff where getCut (OptEff _ cut) = cut
+
 
 newtype FunCoefs = FunCoefs [(Int,Double)]
 
@@ -84,8 +89,8 @@ setProj (ProjDir pdir) = do
             _ommitConstraintOnObj moip pdir
     put $ ExploreMdl moip (ProjDir pdir) cut
 
-setCut :: (MonadIO m) => Double -> StateT OptEff m ()
+setCut :: (MonadIO m, HasCut mdl) => Double -> StateT mdl m ()
 setCut val = do
-    (OptEff _ cut) <- get
-    liftIO $ setUB cut val
+    mdl <- get
+    liftIO $ setUB (getCut mdl) val
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Optimizer where
 
 import SearchRegion
@@ -6,6 +7,8 @@ import MOIP
 import IloCplex
 
 import Control.Monad
+import Control.Monad.State
+import Control.Lens
 import qualified Data.Array as A
 import Data.Maybe
 
@@ -16,13 +19,50 @@ data Algorithm = Algorithm {
                     _reoptMdl :: ReoptMdl,
                     _optEff :: OptEff,
 
-                    _sr :: SRUB,
+                    _searchRegion :: SRUB,
                     
                     _ndpts :: [Point],
-                    _bestVal :: Double,
-                    _bestSol :: Maybe Point
+                    _bestVal :: Double
                  }
+makeLenses ''Algorithm
 
+
+
+
+optimize :: GlobalBounds -> StateT Algorithm IO ()
+optimize gbnds = do
+    sr <- use searchRegion
+    if emptySR sr
+        then pure ()
+        else do
+            cutval <- use bestVal
+            --(exp,reopt,opteff) <- (,,) <$> use exploreMdl <*> use reoptMdl <*> use optEff
+            let zexp = selectZone sr
+                (_,pdir) = _szMaxProj $ fromExplored zexp
+            ptM <- zoom exploreMdl $ do 
+                    setProj pdir
+                    setCut $ cutval - 0.5
+                    setLocalUpperBoundM zexp
+                    solveM
+            case ptM of
+                Nothing -> searchRegion %= updateSR gbnds zexp pdir ptM
+                Just y -> do
+                    -- found a feasible point improving the best value
+                    yNDM <- zoom reoptMdl $ do
+                                reoptimizeFromM y
+                                solveFromPointM y
+                    case yNDM of
+                        Nothing -> error $ "reoptimizing was infeasible [should not happen]"
+                        Just yND -> do
+                            newsolution <- zoom optEff $ do
+                                                setCut $ sum $ A.elems $ _ptPerf yND
+                                                solveM
+                            optval <- zoom optEff getObjValueM
+                            bestVal %= max optval
+                            searchRegion %= updateSR gbnds zexp pdir newsolution
+
+                    
+            
 
 
 
@@ -36,7 +76,6 @@ mkAlgorithm env dom funcoefs = do
                  <*> pure (SRUB [mkZone globalbounds])
                  <*> pure []
                  <*> pure maxval
-                 <*> pure Nothing
     where computeGlobalBounds = do
                 moipmin <- mkMOIPScheme env dom
                 moipmax <- mkMOIPScheme env dom

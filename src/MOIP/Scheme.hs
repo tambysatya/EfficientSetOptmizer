@@ -116,3 +116,6 @@ _exportModel moip name = exportModel (lpCpx $ _moipsLP moip) name
 
 _setMaximize :: MOIPScheme -> IO ()
 _setMaximize moip = setMaximize $ lpObj $ _moipsLP moip
+
+_getObjValue :: MOIPScheme -> IO Double
+_getObjValue moip = lpObjValue $ _moipsLP moip

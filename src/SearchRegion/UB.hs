@@ -28,6 +28,7 @@ makeLenses ''UB
 
 newtype ExploredUB = ExploredUB {fromExplored :: UB }
 
+{-| TODO use a min heap -}
 data SRUB = SRUB {_srub :: ![UB]}
 
 instance Boundary UB where
@@ -128,7 +129,7 @@ child (yA, (Ideal yI)) pt ub (ChildDir cdir)
       | otherwise = Nothing
     where p = snd $ A.bounds childub
           childub = _szU ub A.// [(cdir, _ptPerf pt A.! cdir)]
-          childmaxproj = (projVal yA ub $ ProjDir cdir, ProjDir cdir) --computeMaxProj yA childub  
+          childmaxproj = computeMaxProj yA childub --(projVal yA ub $ ProjDir cdir, ProjDir cdir) 
           childdefpts = A.array (1,p) $ (cdir,[pt]):[(i, validPts) | i <- [1..p],
                                                                      i /= cdir, 
                                                                      let pts = _szDefiningPoint ub A.! i
@@ -136,6 +137,13 @@ child (yA, (Ideal yI)) pt ub (ChildDir cdir)
           child = ub & szU .~ childub
                      & szDefiningPoint .~ childdefpts
                      & szMaxProj .~ childmaxproj
+
+
+selectZone :: SRUB -> ExploredUB
+selectZone (SRUB sr) = ExploredUB $ minimumBy (compare `on` (fst . view szMaxProj)) sr -- minimumBy since we negates the values
+
+emptySR :: SRUB -> Bool
+emptySR (SRUB sr) = null sr
 
 
        

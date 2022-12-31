@@ -11,7 +11,7 @@
 module MOIP.Class where
 
 import SearchRegion.Class
-import IloCplex hiding (exportModel)
+import IloCplex hiding (exportModel, getObjValue)
 import qualified Data.Array as A
 import Control.Monad.State
 import MOIP.Scheme
@@ -61,6 +61,11 @@ reoptimizeFrom moip = _reoptimizeFrom (toMOIPScheme moip)
 solveFromPoint :: (SimpleMOIP a) => a -> Point -> IO (Maybe Point)
 solveFromPoint moip = _solveFromPoint (toMOIPScheme moip)
 
+solveFromPointM :: (MonadIO m, SimpleMOIP a) => Point -> StateT a m (Maybe Point)
+solveFromPointM pt = do
+    me <- get
+    liftIO $ solveFromPoint me pt
+
 reoptimizeFromM :: (MonadIO m, SimpleMOIP a, Boundary z) => z -> StateT a m ()
 reoptimizeFromM z = do
     me <- get
@@ -79,4 +84,14 @@ selectObjectiveM k = do
     me' <- liftIO $ selectObjective me k
     put me'
 
+solveM :: (MonadIO m, SimpleMOIP a) => StateT a m (Maybe Point)
+solveM = do
+    mdl <- get
+    liftIO $ MOIP.Class.solve mdl
 
+getObjValue :: (SimpleMOIP a) => a -> IO Double
+getObjValue moip = _getObjValue (toMOIPScheme moip)
+getObjValueM :: (MonadIO m, SimpleMOIP a) => StateT a m Double
+getObjValueM = do
+    me <- get
+    liftIO $ getObjValue me
