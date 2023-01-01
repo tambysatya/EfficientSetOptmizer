@@ -7,6 +7,7 @@ import SearchRegion.Class
 import qualified Data.Array as A
 import Control.Monad
 import Foreign.ForeignPtr
+import Foreign.ForeignPtr
 
 type IloBoolVarArray = A.Array Int IloBoolVar
 type IloNumVarArray = A.Array Int IloNumVar
@@ -48,17 +49,32 @@ mkMOIPScheme env dom@(objcoefs, lbcoefs, ctrcoefs, ubcoefs) = do
                 pure ctr 
         objbindctrs <- zipWithM mkObjBindCtr [1..p] objcoefs -- builds y_i = f(x)
         domctrs <- forM (zip3 lbcoefs ctrcoefs ubcoefs) $ \(lb,coefs,ub) -> mkDomCtr lb coefs ub -- builds l <= AX <= u
+        putStrLn "creating objctrs"
         objctrs <- forM [1..p] $ \i -> do
             ctr <- newIloObject env
             lpAdd lp ctr
             setLinearCoef ctr (objvars A.! i) 1
-	    setBounds ctr (-(2^32),2^32)
+            setBounds ctr (-(2^32),2^32)
             pure ctr
 --        mipstart <- mkEmptyMIPStart env (A.elems domvars)
+        putStrLn "done"
 
         pure $ MOIPScheme lp objvars domvars (A.listArray (1,p) objctrs) (objbindctrs ++ domctrs) --mipstart
      where n = length (head objcoefs)
            p = length objcoefs
+
+touchMOIPScheme (MOIPScheme lp ovars dvars octrs dctrs) = do
+    touchLP lp
+    forM_ (A.elems ovars) $ touchForeignPtr . getImpl
+    forM_ (A.elems dvars) $ touchForeignPtr . getImpl
+    forM_ (A.elems octrs) $ touchForeignPtr . getImpl
+    forM_ dctrs $ touchForeignPtr . getImpl
+cleanMOIPScheme (MOIPScheme lp ovars dvars octrs dctrs) = do
+    forM (A.elems octrs) $ \ctr -> forM ovars $ \oi -> setLinearCoef ctr oi 1
+    forM dctrs $ \ctr -> forM (A.elems dvars) $ \oi -> setLinearCoef ctr oi 1
+    pure ()
+ where ovarsl = A.elems ovars
+
 
 
 

@@ -27,6 +27,7 @@ class MOIP a where
  {-| A simple interface for writing multi-objective programs. -}
 class SimpleMOIP a where
     toMOIPScheme :: a -> MOIPScheme 
+    touchMOIP :: a -> IO ()
 
 class AsymetricMOIP a where
    selectObjective :: a -> ProjDir -> IO a
@@ -54,6 +55,11 @@ addConstraintOnObj moip = _addConstraintOnObj (toMOIPScheme moip)
 
 exportModel :: (SimpleMOIP a) => a -> String -> IO ()
 exportModel moip str = _exportModel (toMOIPScheme moip) str
+
+exportModelM :: (SimpleMOIP a, MonadIO m) => String -> StateT a m ()
+exportModelM str = do
+    mdl <- get
+    liftIO $ exportModel mdl str
 
 reoptimizeFrom :: (SimpleMOIP a, Boundary z) => a -> z -> IO ()
 reoptimizeFrom moip = _reoptimizeFrom (toMOIPScheme moip)

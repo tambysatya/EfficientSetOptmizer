@@ -32,6 +32,7 @@ instance Show ExploredUB where
 
 {-| TODO use a min heap -}
 data SRUB = SRUB {_srub :: ![UB]}
+instance Show SRUB where show (SRUB sr) = show $ fmap (A.elems ._szU ) sr
 
 instance Boundary UB where
     toBound = _szU
@@ -52,9 +53,9 @@ mkZone :: GlobalBounds -> UB
 mkZone (yA,yI) = UB (fmap (+1) $ toBound yA) (A.listArray (1,p) $ take p $ repeat []) (0,ProjDir 2)
     where (1,p) = A.bounds $ toBound yA
 
-updateSR :: GlobalBounds -> ExploredUB -> ProjDir -> Maybe Point -> SRUB -> SRUB
-updateSR gbnds zexp pdir Nothing (SRUB sr) = SRUB $ catMaybes $ updateZoneNothing gbnds zexp pdir <$> sr
-updateSR gbnds zexp pdir@(ProjDir k) (Just pt) (SRUB sr) = SRUB $ sr >>= updateZoneJustWithRR gbnds zexp pdir lb pt 
+updateSR :: GlobalBounds -> ExploredUB -> ProjDir -> Maybe Point -> Double -> SRUB -> SRUB
+updateSR gbnds zexp pdir Nothing _ (SRUB sr) = SRUB $ catMaybes $ updateZoneNothing gbnds zexp pdir <$> sr
+updateSR gbnds zexp pdir@(ProjDir k) (Just pt) estimation (SRUB sr) = SRUB $ sr >>= updateZoneJustWithRR gbnds zexp pdir lb pt estimation
     where lb = _ptPerf pt A.! k
 
 {-| Updates a zone z and returns the potentially
@@ -79,9 +80,11 @@ updateZoneNothing gbnds (ExploredUB zexp) pdir  z
 
 
 -- TODO strict evaluation
-updateZoneJustWithRR :: GlobalBounds -> ExploredUB -> ProjDir -> Double ->Point ->  UB -> [UB]
-updateZoneJustWithRR gbnds zexp pdir lb_l pt ub = catMaybes $ 
-                                 applyReductionRule zexp pdir lb_l <$> updateZoneJust gbnds ub pt
+updateZoneJustWithRR :: GlobalBounds -> ExploredUB -> ProjDir -> Double ->Point -> Double -> UB -> [UB]
+updateZoneJustWithRR gbnds zexp pdir lb_l pt estimation ub = useLocalLowerBound $ 
+                                                             catMaybes $ 
+                                                                 applyReductionRule zexp pdir lb_l <$> updateZoneJust gbnds ub pt 
+    where useLocalLowerBound lz = [li | li <- lz, sum (A.elems $ toBound li) <= estimation]
 updateZoneJust :: GlobalBounds -> UB -> Point -> [UB]
 updateZoneJust gbnds ub  pt 
         | pt `domS` ub = catMaybes [child gbnds pt ub i | i <- ChildDir <$> [1..p]]
@@ -131,7 +134,8 @@ child (yA, (Ideal yI)) pt ub (ChildDir cdir)
       | otherwise = Nothing
     where p = snd $ A.bounds childub
           childub = _szU ub A.// [(cdir, _ptPerf pt A.! cdir)]
-          childmaxproj = computeMaxProj yA childub --(projVal yA ub $ ProjDir cdir, ProjDir cdir) 
+          childmaxproj = (projVal yA ub $ ProjDir cdir, ProjDir cdir) 
+          --childmaxproj = computeMaxProj yA childub 
           childdefpts = A.array (1,p) $ (cdir,[pt]):[(i, validPts) | i <- [1..p],
                                                                      i /= cdir, 
                                                                      let pts = _szDefiningPoint ub A.! i
