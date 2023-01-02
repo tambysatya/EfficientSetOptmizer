@@ -18,10 +18,10 @@ mainKS =
         dom@(objs,_,_,_) <- read1KS name
         let coefs = foldr1 (zipWith (+)) objs
             funcoefs = FunCoefs $ zip [1..] $ fmap negate coefs
-        val <- runAlgorithm "vanilla-pdir_cdir" "kp.log" env dom funcoefs
+        val <- runAlgorithm "nocut-hv" "kp.log" env dom funcoefs
         print val
          
-  where instances = [(3,100)] --[(5,100), (4,100),(3,100)] --[(3,100),(4,100)]
+  where instances = [(5,100), (4,100),(3,100)] --[(3,100),(4,100)]
 
 
 

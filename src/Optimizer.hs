@@ -26,7 +26,7 @@ data Algorithm = Algorithm {
                     _searchRegion :: SRUB,
                     
                     _ndpts :: S.Set Bound,
-                    _bestVal :: Double,
+                    _bestVal :: SubOpt,
                     _stats :: Stats
                  }
 data Stats = Stats {_lmax :: Int,
@@ -59,14 +59,13 @@ optimize = do
             stats.ltotal += srsize
             ptM <- zoom exploreMdl $ do 
                     setProj pdir
-                    setCutUB $ cutval - 0.5
                     setLocalUpperBoundM zexp
                     solveM
             case ptM of
                 Nothing -> do
                     logM $ "\t X"
                     stats.nbInfeasible += 1
-                    searchRegion %= updateSR gbnds zexp pdir ptM maxval -- cutval
+                    searchRegion %= updateSR gbnds zexp pdir Nothing cutval
                     optimize 
                 Just y -> do
                     -- found a feasible point improving the best value
@@ -78,17 +77,30 @@ optimize = do
                         Nothing -> error $ "reoptimizing was infeasible [should not happen]"
                         Just yND -> do
                             logM $ "\t" ++ show yND
-                            newsolution <- zoom optEff $ do
+                            newsolutionM <- zoom optEff $ do
                                                 --setCutEq $ sum $ A.elems $ _ptPerf yND
-                                                reoptimizeFromM yND
-                                                solveFromPointM yND
-                            logM $ "\t" ++ show (fromJust newsolution)
-                            optval <- zoom optEff getObjValueM
+                                                    reoptimizeFromM yND
+                                                    solveFromPointM yND
+                            optval <- SubOpt <$> zoom optEff getObjValueM
+                            let sol = fromJust newsolutionM
+                                (ProjDir k) = pdir
+                            lb <- zoom optEff $ do
+                                                    setLocalUpperBoundM zexp
+                                                    ommitConstraintOnObjM k
+                                                    solveFromPointM sol
+                                                    solveM
+                                                    val <- getObjValueM
+                                                    addConstraintOnObjM k
+                                                    pure $ HyperOpt val
+                                                    
+                                                
+
+                            logM $ "\t" ++ show sol
                             bestVal %= min optval
                             newval <- use bestVal
                             --logM $ "\t" ++ show y ++ " => " ++ show yND ++ " => " ++  show (fromJust newsolution) ++ " best=" ++ show newval                                                
-                            searchRegion %= updateSR gbnds zexp pdir newsolution maxval --newval
-                            ndpts %= S.insert (_ptPerf $ fromJust newsolution)
+                            searchRegion %= updateSR gbnds zexp pdir (Just (sol,lb)) newval
+                            ndpts %= S.insert (_ptPerf sol)
                             optimize 
 
                     
@@ -109,7 +121,7 @@ mkAlgorithm env dom funcoefs = do
                  <*> mkOptEff env dom funcoefs
                  <*> pure (SRUB [mkZone globalbounds])
                  <*> pure S.empty
-                 <*> pure maxval
+                 <*> pure (SubOpt maxval)
                  <*> pure mkStats
     where computeGlobalBounds = do
                 moipmin <- mkMOIPScheme env dom
@@ -130,7 +142,7 @@ mkAlgorithm env dom funcoefs = do
                         Ideal $ A.listArray (1,nbCrits moipmin) yI)
                             
 
-runAlgorithm' :: IloEnv -> Domain -> FunCoefs -> IO (Double, Algorithm)
+runAlgorithm' :: IloEnv -> Domain -> FunCoefs -> IO (SubOpt, Algorithm)
 runAlgorithm' env dom fun = do
     algo <- mkAlgorithm env dom fun
     (_,final) <- runStateT optimize algo

@@ -18,10 +18,17 @@ newtype ChildDir = ChildDir {fromChildDir :: Int}
 
 
 
+newtype HyperOpt = HyperOpt Double
+    deriving (Show, Eq, Ord, Num)
+newtype SubOpt = SubOpt Double
+    deriving (Show, Eq, Ord, Num)
+
 
 data UB = UB {_szU :: !Bound,
               _szDefiningPoint :: ! (A.Array Int [Point]),
-              _szMaxProj :: (Double, ProjDir)}
+              _szMaxProj :: (Double, ProjDir),
+              _szLB :: HyperOpt
+              }
 
 makeLenses ''UB
 
@@ -50,12 +57,12 @@ instance Boundary ExploredUB where
 
 
 mkZone :: GlobalBounds -> UB
-mkZone (yA,yI) = UB (fmap (+1) $ toBound yA) (A.listArray (1,p) $ take p $ repeat []) (0,ProjDir 2)
+mkZone (yA,yI) = UB (fmap (+1) $ toBound yA) (A.listArray (1,p) $ take p $ repeat []) (0,ProjDir 2) $ HyperOpt (-maxbound)
     where (1,p) = A.bounds $ toBound yA
 
-updateSR :: GlobalBounds -> ExploredUB -> ProjDir -> Maybe Point -> Double -> SRUB -> SRUB
+updateSR :: GlobalBounds -> ExploredUB -> ProjDir -> Maybe (Point,HyperOpt) -> SubOpt -> SRUB -> SRUB
 updateSR gbnds zexp pdir Nothing _ (SRUB sr) = SRUB $ catMaybes $ updateZoneNothing gbnds zexp pdir <$> sr
-updateSR gbnds zexp pdir@(ProjDir k) (Just pt) estimation (SRUB sr) = SRUB $ sr >>= updateZoneJustWithRR gbnds zexp pdir lb pt estimation
+updateSR gbnds zexp pdir@(ProjDir k) (Just (pt,hopt)) estimation (SRUB sr) = SRUB $ sr >>= updateZoneJustWithRR gbnds zexp pdir lb pt hopt estimation
     where lb = _ptPerf pt A.! k
 
 {-| Updates a zone z and returns the potentially
@@ -80,17 +87,16 @@ updateZoneNothing gbnds (ExploredUB zexp) pdir  z
 
 
 -- TODO strict evaluation
-updateZoneJustWithRR :: GlobalBounds -> ExploredUB -> ProjDir -> Double ->Point -> Double -> UB -> [UB]
-updateZoneJustWithRR gbnds zexp pdir lb_l pt estimation ub = useLocalLowerBound $ 
-                                                             catMaybes $ 
-                                                                 applyReductionRule zexp pdir lb_l <$> updateZoneJust gbnds ub pt 
-    where useLocalLowerBound lz = [li | li <- lz, sum (A.elems $ toBound li) <= estimation]
+updateZoneJustWithRR :: GlobalBounds -> ExploredUB -> ProjDir -> Double ->Point -> HyperOpt -> SubOpt -> UB -> [UB]
+updateZoneJustWithRR gbnds zexp pdir lb_l pt hopt estimation ub =catMaybes $ 
+                                                                     applyReductionRule zexp pdir lb_l hopt estimation <$> updateZoneJust gbnds ub pt 
 updateZoneJust :: GlobalBounds -> UB -> Point -> [UB]
 updateZoneJust gbnds ub  pt 
         | pt `domS` ub = catMaybes [child gbnds pt ub i | i <- ChildDir <$> [1..p]]
         | pt `domL` ub = [updateDefiningPoints pt ub]
         | otherwise = [ub]
     where p = dimension ub
+          
 
 {-| Applies the reduction rule if a point have been found y have been found after looking for 
     improving component k by searching in direction l:
@@ -102,8 +108,23 @@ applyReductionRule ::
            ExploredUB -- The zone
            -> ProjDir -- The projection that have been explored
            -> Double -- lower bound on projdir
+           -> HyperOpt
+           -> SubOpt
            -> UB
            -> Maybe UB
+applyReductionRule (ExploredUB zexp) pdir lb_l (HyperOpt hopt) (SubOpt sopt) ub
+        | localIdeal >= sopt = Nothing
+        | projPred && hopt >= sopt = Nothing
+        | projPred  &&
+          lb_l  >= _szU ub A.! l = Nothing
+        | projPred  = Just $ ub & szLB .~ (HyperOpt hopt)
+        | otherwise = Just ub
+   where l = fromProjDir pdir
+         projPred = proj pdir ub `domL` proj pdir zexp
+         (HyperOpt localIdeal) = _szLB ub
+
+
+{-
 applyReductionRule zexp pdir lb_l ub 
     | reductionRuleP zexp pdir lb_l ub = Nothing
     | otherwise = Just ub
@@ -114,7 +135,8 @@ reductionRuleP (ExploredUB zexp) pdir lb_l ub
           lb_l  >= _szU ub A.! l = True
         | otherwise = False
    where l = fromProjDir pdir
-
+         projPred = proj pdir ub `domL` proj pdir zexp
+-}
     
 
 
@@ -134,8 +156,8 @@ child (yA, (Ideal yI)) pt ub (ChildDir cdir)
       | otherwise = Nothing
     where p = snd $ A.bounds childub
           childub = _szU ub A.// [(cdir, _ptPerf pt A.! cdir)]
-          childmaxproj = (projVal yA ub $ ProjDir cdir, ProjDir cdir) 
-          --childmaxproj = computeMaxProj yA childub 
+          --childmaxproj = (projVal yA ub $ ProjDir cdir, ProjDir cdir) 
+          childmaxproj = computeMaxProj yA childub 
           childdefpts = A.array (1,p) $ (cdir,[pt]):[(i, validPts) | i <- [1..p],
                                                                      i /= cdir, 
                                                                      let pts = _szDefiningPoint ub A.! i

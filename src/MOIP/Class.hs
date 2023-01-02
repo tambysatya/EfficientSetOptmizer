@@ -50,8 +50,18 @@ setObjectiveCoef moip i = _setObjectiveCoef (toMOIPScheme moip) i
 ommitConstraintOnObj :: (SimpleMOIP a) => a -> Int -> IO ()
 ommitConstraintOnObj moip = _ommitConstraintOnObj (toMOIPScheme moip)
 
+ommitConstraintOnObjM :: (SimpleMOIP a, MonadIO m) => Int -> StateT a m ()
+ommitConstraintOnObjM i = do
+    me <- get
+    liftIO $ ommitConstraintOnObj me i
+
 addConstraintOnObj :: (SimpleMOIP a) => a -> Int -> IO ()
 addConstraintOnObj moip = _addConstraintOnObj (toMOIPScheme moip)
+
+addConstraintOnObjM :: (SimpleMOIP a, MonadIO m) => Int -> StateT a m ()
+addConstraintOnObjM i = do
+    me <- get
+    liftIO $ addConstraintOnObj me i
 
 exportModel :: (SimpleMOIP a) => a -> String -> IO ()
 exportModel moip str = _exportModel (toMOIPScheme moip) str
