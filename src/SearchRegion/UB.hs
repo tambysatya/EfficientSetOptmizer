@@ -134,8 +134,8 @@ child (yA, (Ideal yI)) pt ub (ChildDir cdir)
       | otherwise = Nothing
     where p = snd $ A.bounds childub
           childub = _szU ub A.// [(cdir, _ptPerf pt A.! cdir)]
-          childmaxproj = (projVal yA ub $ ProjDir cdir, ProjDir cdir) 
-          --childmaxproj = computeMaxProj yA childub 
+          --childmaxproj = (projVal yA ub $ ProjDir cdir, ProjDir cdir) 
+          childmaxproj = computeMaxProj yA childub 
           childdefpts = A.array (1,p) $ (cdir,[pt]):[(i, validPts) | i <- [1..p],
                                                                      i /= cdir, 
                                                                      let pts = _szDefiningPoint ub A.! i
