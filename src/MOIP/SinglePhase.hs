@@ -40,6 +40,7 @@ instance HasCut OptEffCut where getCut (OptEffCut _ cut) = cut
 instance HasProj ExploreMdl where
     getCurProj (ExploreMdl _ p _) = p
     setCurProj (ExploreMdl mdl _ cut) p = ExploreMdl mdl p cut
+    
 newtype FunCoefs = FunCoefs [(Int,Double)]
 
 

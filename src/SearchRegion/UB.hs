@@ -4,7 +4,7 @@ module SearchRegion.UB where
 import SearchRegion.Class
 import Control.Lens
 import qualified Data.Array as A
-import Data.List
+import qualified Data.List as L
 import Data.Maybe
 import Data.Function
 
@@ -18,11 +18,12 @@ newtype ChildDir = ChildDir {fromChildDir :: Int}
 
 
 
-newtype HyperOpt = HyperOpt Double
-    deriving (Show, Eq, Ord, Num)
+newtype HyperOpt = HyperOpt {fromHyperOpt :: Double}
+    deriving (Eq, Ord, Num)
 newtype SubOpt = SubOpt {fromSubOpt :: Double}
     deriving (Eq, Ord, Num)
 instance Show SubOpt where show (SubOpt s) = "subopt="++ show s
+instance Show HyperOpt where show (HyperOpt s) = "hyperopt="++ show s
 
 
 data UB = UB {_szU :: !Bound,
@@ -63,7 +64,7 @@ mkZone (yA,yI) = UB (fmap (+1) $ toBound yA) (A.listArray (1,p) $ take p $ repea
 
 updateSR :: GlobalBounds -> ExploredUB -> ProjDir -> Maybe (Point,HyperOpt) -> SubOpt -> SRUB -> SRUB
 updateSR gbnds zexp pdir Nothing _ (SRUB sr) = SRUB $ catMaybes $ updateZoneNothing gbnds zexp pdir <$> sr
-updateSR gbnds zexp pdir@(ProjDir k) (Just (pt,hopt)) estimation (SRUB sr) = SRUB $ sr >>= updateZoneJustWithRR gbnds zexp pdir lb pt hopt estimation
+updateSR gbnds zexp pdir@(ProjDir k) (Just (pt,hopt)) estimation (SRUB sr) = SRUB $ sr >>= updateZoneJustWithRR gbnds zexp hopt pdir lb pt estimation
     where lb = _ptPerf pt A.! k
 
 updateSR_noRR :: GlobalBounds -> Point -> SRUB -> SRUB
@@ -91,16 +92,20 @@ updateZoneNothing gbnds (ExploredUB zexp) pdir  z
 
 
 -- TODO strict evaluation
-updateZoneJustWithRR :: GlobalBounds -> ExploredUB -> ProjDir -> Double ->Point -> HyperOpt -> SubOpt -> UB -> [UB]
-updateZoneJustWithRR gbnds zexp pdir lb_l pt hopt estimation ub =catMaybes $ 
-                                                                     applyReductionRule zexp pdir lb_l hopt estimation <$> updateZoneJust gbnds ub pt 
+updateZoneJustWithRR :: GlobalBounds -> ExploredUB -> HyperOpt -> ProjDir -> Double ->Point -> SubOpt -> UB -> [UB]
+updateZoneJustWithRR gbnds zexp hopt pdir lb_l pt estimation@(SubOpt cur) ub = catMaybes $ applyReductionRule zexp pdir lb_l estimation <$> updateZoneJustHOpt gbnds zexp hopt ub pt 
 updateZoneJust :: GlobalBounds -> UB -> Point -> [UB]
-updateZoneJust gbnds ub  pt 
+updateZoneJust gbnds ub pt 
         | pt `domS` ub = catMaybes [child gbnds pt ub i | i <- ChildDir <$> [1..p]]
         | pt `domL` ub = [updateDefiningPoints pt ub]
         | otherwise = [ub]
     where p = dimension ub
           
+updateZoneJustHOpt :: GlobalBounds -> ExploredUB -> HyperOpt -> UB -> Point -> [UB]
+updateZoneJustHOpt gbnds zexp hopt ub  pt 
+        | pt `domS` ub && toBound ub == toBound zexp = catMaybes [child gbnds pt ub i & _Just.szLB .~ hopt | i <- ChildDir <$> [1..p]]
+        | otherwise = updateZoneJust gbnds ub pt
+    where p = dimension ub
 
 {-| Applies the reduction rule if a point have been found y have been found after looking for 
     improving component k by searching in direction l:
@@ -112,16 +117,16 @@ applyReductionRule ::
            ExploredUB -- The zone
            -> ProjDir -- The projection that have been explored
            -> Double -- lower bound on projdir
-           -> HyperOpt
            -> SubOpt
            -> UB
            -> Maybe UB
-applyReductionRule (ExploredUB zexp) pdir lb_l (HyperOpt hopt) (SubOpt sopt) ub
+applyReductionRule (ExploredUB zexp) pdir lb_l (SubOpt sopt) ub
         | localIdeal >= sopt = Nothing
-        | projPred && hopt >= sopt = Nothing
+        -- | projPred && hopt >= sopt = Nothing
+        | _szLB ub >= HyperOpt sopt = Nothing
         | projPred  &&
           lb_l  >= _szU ub A.! l = Nothing
-        | projPred  = Just $ ub & szLB .~ (HyperOpt hopt)
+        -- | projPred  = Just $ ub & szLB .~ (HyperOpt hopt)
         | otherwise = Just ub
    where l = fromProjDir pdir
          projPred = proj pdir ub `domL` proj pdir zexp
@@ -172,7 +177,7 @@ child (yA, (Ideal yI)) pt ub (ChildDir cdir)
 
 
 selectZone :: SRUB -> ExploredUB
-selectZone (SRUB sr) = ExploredUB $ minimumBy (compare `on` (fst . view szMaxProj)) sr -- minimumBy since we negates the values
+selectZone (SRUB sr) = ExploredUB $ L.minimumBy (compare `on` (fst . view szMaxProj)) sr -- minimumBy since we negates the values
 
 emptySR :: SRUB -> Bool
 emptySR (SRUB sr) = null sr
@@ -186,7 +191,7 @@ srSize (SRUB sr) = length sr
 
              
 computeMaxProj :: AntiIdeal -> Bound -> (Double, ProjDir)
-computeMaxProj yA ub = minimumBy (compare `on` fst) [(projVal yA ub $ ProjDir i, ProjDir i)  | i <- [1..p], ub A.! i /= (toBound yA A.! i + 1)]
+computeMaxProj yA ub = L.minimumBy (compare `on` fst) [(projVal yA ub $ ProjDir i, ProjDir i)  | i <- [1..p], ub A.! i /= (toBound yA A.! i + 1)]
     where (_,p) = A.bounds ub
           -- projVal is negated since we manipulates min heap
 projVal yA ub i = negate $ sum $ logBase 2 <$> zipWith (-) (A.elems $ proj i yA) (A.elems $ proj i ub)
@@ -207,3 +212,5 @@ childKHasValidDefPoint (AntiIdeal yA,_) pt k z = and  [not $ null $ validPts |
                                             validPts = [pti | pti <- pts, _ptPerf pti A.! k < _ptPerf pt A.! k]]
         where (_,p) = A.bounds $ _szU z
  
+deleteZone :: UB -> SRUB -> SRUB
+deleteZone ub (SRUB sr) = SRUB $ L.deleteBy ((==) `on` toBound) ub sr
