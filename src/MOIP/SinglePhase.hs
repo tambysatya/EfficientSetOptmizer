@@ -23,10 +23,12 @@ import Foreign.ForeignPtr
 data ExploreMdl = ExploreMdl MOIPScheme ProjDir IloRange -- Finds a point (not necessarily nondominated) that improves the best value found so far
 data ReoptMdl = ReoptMdl MOIPScheme -- Verifies if a point is nondominated
 data OptEff = OptEff MOIPScheme -- Optimise over the efficient solutions associated to a given weighted sum
+data OptEffCut = OptEffCut MOIPScheme IloRange
 
 class HasCut mdl where
     getCut :: mdl -> IloRange
 instance HasCut ExploreMdl where getCut (ExploreMdl _ _ cut) = cut
+instance HasCut OptEffCut where getCut (OptEffCut _ cut) = cut
 
 
 newtype FunCoefs = FunCoefs [(Int,Double)]
@@ -44,7 +46,9 @@ instance SimpleMOIP OptEff where
     toMOIPScheme (OptEff mdl) = mdl
     touchMOIP (OptEff mdl) = cleanMOIPScheme mdl
     --touchMOIP (OptEff mdl) = touchMOIPScheme mdl
-
+instance SimpleMOIP OptEffCut where
+    toMOIPScheme (OptEffCut mdl _) = mdl
+    touchMOIP (OptEffCut mdl _) = cleanMOIPScheme mdl
 
 maxval :: Double
 maxval = fromIntegral $ (2^(32 ::Int) :: Int)
@@ -81,6 +85,15 @@ mkOptEff env dom (FunCoefs funcoefs) = do
         setLinearCoef (lpObj $ _moipsLP moip) (_moipsDomvars moip A.! i) ci
     pure $ OptEff moip 
     
+mkOptEffCut :: IloEnv -> Domain -> FunCoefs -> IO OptEffCut
+mkOptEffCut env dom (FunCoefs funcoefs) = do
+    moip <- mkMOIPScheme env dom
+    forM_ funcoefs $ \(i,ci) -> 
+        setLinearCoef (lpObj $ _moipsLP moip) (_moipsDomvars moip A.! i) ci
+    cut <- newIloObject env 
+    forM (A.elems $ _moipsObjvars moip) $ \oi -> setLinearCoef cut oi 1
+    pure $ OptEffCut moip cut
+
 setProj :: (MonadIO m) => ProjDir -> StateT ExploreMdl m ()
 setProj (ProjDir pdir) = do
     (ExploreMdl moip (ProjDir cur) cut) <- get

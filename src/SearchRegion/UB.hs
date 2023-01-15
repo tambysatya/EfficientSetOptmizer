@@ -65,6 +65,9 @@ updateSR gbnds zexp pdir Nothing _ (SRUB sr) = SRUB $ catMaybes $ updateZoneNoth
 updateSR gbnds zexp pdir@(ProjDir k) (Just (pt,hopt)) estimation (SRUB sr) = SRUB $ sr >>= updateZoneJustWithRR gbnds zexp pdir lb pt hopt estimation
     where lb = _ptPerf pt A.! k
 
+updateSR_noRR :: GlobalBounds -> ExploredUB -> Point -> SRUB -> SRUB
+updateSR_noRR gbnds zexp pt (SRUB sr) = SRUB $ concatMap (\u -> updateZoneJust gbnds u pt) sr
+
 {-| Updates a zone z and returns the potentially
       - Nothing (deleted by a reduction rule)
       - The singleton [z], the zone unchanged except potentially its defining points
