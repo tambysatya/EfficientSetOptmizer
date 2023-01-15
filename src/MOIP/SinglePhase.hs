@@ -1,7 +1,8 @@
 module MOIP.SinglePhase(
 maxval,
-ExploreMdl, ReoptMdl, OptEff, FunCoefs (..),
-mkExploreMdl, mkReoptMdl, mkOptEff,
+ExploreMdl, ReoptMdl, OptEff, OptEffCut,
+FunCoefs (..),
+mkExploreMdl, mkReoptMdl, mkOptEff, mkOptEffCut,
 setProj, setCutUB, setCutEq
 )
 
@@ -91,6 +92,7 @@ mkOptEffCut env dom (FunCoefs funcoefs) = do
     forM_ funcoefs $ \(i,ci) -> 
         setLinearCoef (lpObj $ _moipsLP moip) (_moipsDomvars moip A.! i) ci
     cut <- newIloObject env 
+    _moipsLP moip `lpAdd` cut
     forM (A.elems $ _moipsObjvars moip) $ \oi -> setLinearCoef cut oi 1
     pure $ OptEffCut moip cut
 

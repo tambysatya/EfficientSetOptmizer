@@ -21,7 +21,8 @@ data Algorithm = Algorithm {
                     _globalBounds :: GlobalBounds,
                     _exploreMdl :: ExploreMdl,
                     _reoptMdl :: ReoptMdl,
-                    _optEff :: OptEff,
+                    _optEff :: OptEffCut,
+                    --_optEff :: OptEff,
 
                     _searchRegion :: SRUB,
                     
@@ -77,13 +78,19 @@ optimize = do
                         Nothing -> error $ "reoptimizing was infeasible [should not happen]"
                         Just yND -> do
                             logM $ "\t" ++ show yND
+                            {- -- optimize over the solutions associated to the point
                             newsolutionM <- zoom optEff $ do
-                                                --setCutEq $ sum $ A.elems $ _ptPerf yND
                                                     reoptimizeFromM yND
+                                                    solveFromPointM yND
+                            -}
+                            newsolutionM <- zoom optEff $ do
+                                                    setCutEq $ sum $ A.elems $ _ptPerf yND
                                                     solveFromPointM yND
                             optval <- SubOpt <$> zoom optEff getObjValueM
                             let sol = fromJust newsolutionM
                                 (ProjDir k) = pdir
+                            {- calcul de lowerbound sur Phi dans la projection-}
+                            {-
                             lb <- zoom optEff $ do
                                                     setLocalUpperBoundM zexp
                                                     ommitConstraintOnObjM k
@@ -92,14 +99,16 @@ optimize = do
                                                     val <- getObjValueM
                                                     addConstraintOnObjM k
                                                     pure $ HyperOpt val
-                                                    
+                            -}                        
                                                 
 
                             logM $ "\t" ++ show sol
                             bestVal %= min optval
                             newval <- use bestVal
                             --logM $ "\t" ++ show y ++ " => " ++ show yND ++ " => " ++  show (fromJust newsolution) ++ " best=" ++ show newval                                                
-                            searchRegion %= updateSR gbnds zexp pdir (Just (sol,lb)) newval
+                            searchRegion %= updateSR gbnds zexp pdir (Just (yND,HyperOpt $ negate maxval)) newval --without lowerbound
+                            searchRegion %= updateSR_noRR gbnds zexp sol --without lowerbound
+                            --searchRegion %= updateSR gbnds zexp pdir (Just (sol,lb)) newval
                             ndpts %= S.insert (_ptPerf sol)
                             optimize 
 
@@ -118,7 +127,8 @@ mkAlgorithm env dom funcoefs = do
        Algorithm <$> pure globalbounds
                  <*> mkExploreMdl env dom funcoefs
                  <*> mkReoptMdl env dom
-                 <*> mkOptEff env dom funcoefs
+                 <*> mkOptEffCut env dom funcoefs
+                 -- <*> mkOptEff env dom funcoefs
                  <*> pure (SRUB [mkZone globalbounds])
                  <*> pure S.empty
                  <*> pure (SubOpt maxval)
