@@ -61,6 +61,7 @@ optimize = do
             ptM <- zoom exploreMdl $ do 
                     setProj pdir
                     setLocalUpperBoundM zexp
+                    setCutUB $ fromSubOpt cutval
                     solveM
             case ptM of
                 Nothing -> do
@@ -83,9 +84,14 @@ optimize = do
                                                     reoptimizeFromM yND
                                                     solveFromPointM yND
                             -}
-                            newsolutionM <- zoom optEff $ do
+                            -- explore over the projection
+                            newsolutionM <- zoom optEff $ optEffExplore zexp pdir yND
+                            {-newsolutionM <- zoom optEff $ do
                                                     setCutEq $ sum $ A.elems $ _ptPerf yND
+                                                    setLocalUpperBoundM zexp
+                                                    setProj pdir
                                                     solveFromPointM yND
+                                                    -}
                             optval <- SubOpt <$> zoom optEff getObjValueM
                             let sol = fromJust newsolutionM
                                 (ProjDir k) = pdir
@@ -107,7 +113,7 @@ optimize = do
                             newval <- use bestVal
                             --logM $ "\t" ++ show y ++ " => " ++ show yND ++ " => " ++  show (fromJust newsolution) ++ " best=" ++ show newval                                                
                             searchRegion %= updateSR gbnds zexp pdir (Just (yND,HyperOpt $ negate maxval)) newval --without lowerbound
-                            searchRegion %= updateSR_noRR gbnds zexp sol --without lowerbound
+                            searchRegion %= updateSR_noRR gbnds sol --without lowerbound
                             --searchRegion %= updateSR gbnds zexp pdir (Just (sol,lb)) newval
                             ndpts %= S.insert (_ptPerf sol)
                             optimize 

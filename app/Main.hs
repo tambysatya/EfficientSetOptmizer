@@ -18,7 +18,7 @@ mainKS =
         dom@(objs,_,_,_) <- read1KS name
         let coefs = foldr1 (zipWith (+)) objs
             funcoefs = FunCoefs $ zip [1..] $ fmap negate coefs
-        val <- runAlgorithm "cut-hv-nolb" "kp.log" env dom funcoefs
+        val <- runAlgorithm "cut-prdir=cdir-nolb" "kp.log" env dom funcoefs
         print val
          
   where instances = [(3,100)]

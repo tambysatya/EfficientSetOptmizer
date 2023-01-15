@@ -20,8 +20,9 @@ newtype ChildDir = ChildDir {fromChildDir :: Int}
 
 newtype HyperOpt = HyperOpt Double
     deriving (Show, Eq, Ord, Num)
-newtype SubOpt = SubOpt Double
-    deriving (Show, Eq, Ord, Num)
+newtype SubOpt = SubOpt {fromSubOpt :: Double}
+    deriving (Eq, Ord, Num)
+instance Show SubOpt where show (SubOpt s) = "subopt="++ show s
 
 
 data UB = UB {_szU :: !Bound,
@@ -65,8 +66,8 @@ updateSR gbnds zexp pdir Nothing _ (SRUB sr) = SRUB $ catMaybes $ updateZoneNoth
 updateSR gbnds zexp pdir@(ProjDir k) (Just (pt,hopt)) estimation (SRUB sr) = SRUB $ sr >>= updateZoneJustWithRR gbnds zexp pdir lb pt hopt estimation
     where lb = _ptPerf pt A.! k
 
-updateSR_noRR :: GlobalBounds -> ExploredUB -> Point -> SRUB -> SRUB
-updateSR_noRR gbnds zexp pt (SRUB sr) = SRUB $ concatMap (\u -> updateZoneJust gbnds u pt) sr
+updateSR_noRR :: GlobalBounds -> Point -> SRUB -> SRUB
+updateSR_noRR gbnds pt (SRUB sr) = SRUB $ concatMap (\u -> updateZoneJust gbnds u pt) sr
 
 {-| Updates a zone z and returns the potentially
       - Nothing (deleted by a reduction rule)
@@ -159,8 +160,8 @@ child (yA, (Ideal yI)) pt ub (ChildDir cdir)
       | otherwise = Nothing
     where p = snd $ A.bounds childub
           childub = _szU ub A.// [(cdir, _ptPerf pt A.! cdir)]
-          --childmaxproj = (projVal yA ub $ ProjDir cdir, ProjDir cdir) 
-          childmaxproj = computeMaxProj yA childub 
+          childmaxproj = (projVal yA ub $ ProjDir cdir, ProjDir cdir)  --projdir = child dir
+          -- childmaxproj = computeMaxProj yA childub  --hypervolume
           childdefpts = A.array (1,p) $ (cdir,[pt]):[(i, validPts) | i <- [1..p],
                                                                      i /= cdir, 
                                                                      let pts = _szDefiningPoint ub A.! i
