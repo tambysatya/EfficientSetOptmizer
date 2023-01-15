@@ -137,7 +137,6 @@ optEffExplore zexp@(ExploredUB ub) pdir pt = do
     liftIO $ setUB objlctr (_ptPerf pt A.! l)
     
     setCutEq $ sum $ A.elems (_ptPerf pt)
-    exportModelM "optEff.lp"
 
     ret <- solveFromPointM pt
     addConstraintOnObjM l

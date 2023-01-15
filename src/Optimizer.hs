@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, TupleSections #-}
 module Optimizer where
 
 import SearchRegion
@@ -25,6 +25,8 @@ data Algorithm = Algorithm {
                     --_optEff :: OptEff,
 
                     _searchRegion :: SRUB,
+                    _xeArchive :: XeArchive,
+                    _yArchive :: YArchive,
                     
                     _ndpts :: S.Set Bound,
                     _bestVal :: SubOpt,
@@ -56,70 +58,72 @@ optimize = do
                 (_,pdir) = _szMaxProj $ fromExplored zexp
                 srsize = srSize sr
             logM $ "exploring: " ++ show zexp ++  " " ++ show pdir ++ " size=" ++ show srsize  ++ " cutval=" ++ show cutval
-            stats.lmax %= max srsize
-            stats.ltotal += srsize
-            ptM <- zoom exploreMdl $ do 
-                    setProj pdir
-                    setLocalUpperBoundM zexp
-                    setCutUB $ fromSubOpt cutval
-                    solveM
-            case ptM of
+            yar <- use yArchive
+            case checkYMdl zexp yar of
+                Just (YMdl azone ptM) -> do
+                    logM $ "\t" ++ show ptM ++ " [known]"
+                    searchRegion %= updateSR gbnds zexp pdir ((,_szLB $ fromExplored zexp) <$> ptM) cutval
+                    optimize
                 Nothing -> do
-                    logM $ "\t X"
-                    stats.nbInfeasible += 1
-                    searchRegion %= updateSR gbnds zexp pdir Nothing cutval
-                    optimize 
-                Just y -> do
-                    -- found a feasible point improving the best value
-                    logM $ "\t" ++ show y
-                    yNDM <- zoom reoptMdl $ do
-                                reoptimizeFromM y
-                                solveFromPointM y
-                    case yNDM of
-                        Nothing -> error $ "reoptimizing was infeasible [should not happen]"
-                        Just yND -> do
-                            logM $ "\t" ++ show yND
-                            {- -- optimize over the solutions associated to the point
-                            newsolutionM <- zoom optEff $ do
-                                                    reoptimizeFromM yND
-                                                    solveFromPointM yND
-                            -}
-                            -- explore over the projection
-                            newsolutionM <- zoom optEff $ optEffExplore zexp pdir yND
-                            {-newsolutionM <- zoom optEff $ do
-                                                    setCutEq $ sum $ A.elems $ _ptPerf yND
-                                                    setLocalUpperBoundM zexp
-                                                    setProj pdir
-                                                    solveFromPointM yND
-                                                    -}
-                            optval <- SubOpt <$> zoom optEff getObjValueM
-                            let sol = fromJust newsolutionM
-                                (ProjDir k) = pdir
-                            {- calcul de lowerbound sur Phi dans la projection-}
-                            {-
-                            lb <- zoom optEff $ do
-                                                    setLocalUpperBoundM zexp
-                                                    ommitConstraintOnObjM k
-                                                    solveFromPointM sol
-                                                    solveM
-                                                    val <- getObjValueM
-                                                    addConstraintOnObjM k
-                                                    pure $ HyperOpt val
-                            -}                        
-                                                
-
-                            logM $ "\t" ++ show sol
-                            bestVal %= min optval
-                            newval <- use bestVal
-                            --logM $ "\t" ++ show y ++ " => " ++ show yND ++ " => " ++  show (fromJust newsolution) ++ " best=" ++ show newval                                                
-                            searchRegion %= updateSR gbnds zexp pdir (Just (yND,HyperOpt $ negate maxval)) newval --without lowerbound
-                            searchRegion %= updateSR_noRR gbnds sol --without lowerbound
-                            --searchRegion %= updateSR gbnds zexp pdir (Just (sol,lb)) newval
-                            ndpts %= S.insert (_ptPerf sol)
+                    stats.lmax %= max srsize
+                    stats.ltotal += srsize
+                    ptM <- zoom exploreMdl $ do 
+                            setProj pdir
+                            setLocalUpperBoundM zexp
+                            setCutUB $ fromSubOpt cutval
+                            solveM
+                    case ptM of
+                        Nothing -> do
+                            logM $ "\t X"
+                            stats.nbInfeasible += 1
+                            searchRegion %= updateSR gbnds zexp pdir Nothing cutval
+                            yArchive %= insertYMdl (mkYMdl zexp Nothing)
                             optimize 
+                        Just y -> do
+                            -- found a feasible point improving the best value
+                            logM $ "\t" ++ show y
+                            yNDM <- zoom reoptMdl $ do
+                                        reoptimizeFromM y
+                                        solveFromPointM y
+                            yArchive %= insertYMdl (mkYMdl zexp yNDM)
+                            case yNDM of
+                                Nothing -> error $ "reoptimizing was infeasible [should not happen]"
+                                Just yND -> do
+                                    logM $ "\t" ++ show yND
+                                    searchRegion %= updateSR gbnds zexp pdir (Just (yND,HyperOpt $ negate maxval)) 0 --without lowerbound TODO
 
+                                    -- explore over the projection
+                                    xearchive@(XeArchive xear) <- use xeArchive
+                                    let xereq = mkXeMdl zexp yND
+                                    case checkXeMdl xereq xearchive of
+                                        Just known -> do
+                                                logM $ "\t" ++ show known ++ " [known]"
+                                                pure ()
+                                        Nothing -> do
+                                            newsolutionM <- zoom optEff $ optEffExplore zexp pdir yND
+                                            optval <- SubOpt <$> zoom optEff getObjValueM
+
+
+
+                                            let sol = fromJust newsolutionM
+                                                (ProjDir k) = pdir
+
+                                            logM $ "\t" ++ show sol
+                                            bestVal %= min optval
+                                            newval <- use bestVal
+                                            xeArchive %= insertXeMdl (mkXeMdl zexp sol)
+                                            --logM $ "\t" ++ show y ++ " => " ++ show yND ++ " => " ++  show (fromJust newsolution) ++ " best=" ++ show newval                                                
+                                            --searchRegion %= updateSR gbnds zexp pdir (Just (yND,HyperOpt $ negate maxval)) newval --without lowerbound
+                                            searchRegion %= updateSR_noRR gbnds sol --without lowerbound
+                                    --searchRegion %= updateSR gbnds zexp pdir (Just (sol,lb)) newval
+                                            when (yND /= sol) $
+                                                ndpts %= S.insert (_ptPerf sol)
+                                                
+                                    ndpts %= S.insert (_ptPerf yND)
+                                    optimize 
+
+                            
                     
-            
 logM :: (MonadIO m) => String -> StateT a m ()
 logM text = liftIO $ putStrLn text
 
@@ -136,6 +140,8 @@ mkAlgorithm env dom funcoefs = do
                  <*> mkOptEffCut env dom funcoefs
                  -- <*> mkOptEff env dom funcoefs
                  <*> pure (SRUB [mkZone globalbounds])
+                 <*> pure (XeArchive [])
+                 <*> pure (YArchive [])
                  <*> pure S.empty
                  <*> pure (SubOpt maxval)
                  <*> pure mkStats
