@@ -69,7 +69,7 @@ optimize = do
                 Nothing -> do
                     logM $ "\t X"
                     stats.nbInfeasible += 1
-                    searchRegion %= updateSR gbnds zexp pdir Nothing cutval
+                    zoom searchRegion $ updateSR gbnds zexp pdir Nothing cutval
                     yArchive %= insertYMdl (mkYMdl zexp Nothing)
                     optimize 
                 Just y -> do
@@ -79,21 +79,12 @@ optimize = do
                                 reoptimizeFromM y
                                 solveFromPointM y
                     {- Lower bound over the ZONE (if non-empty)-}
-                    let (ProjDir l) =  pdir
-
-                    lbM <- if (_ptPerf y A.! l) < (toBound zexp A.! l) 
-                                then zoom optEffLB $ do
-                                      setLocalUpperBoundM zexp
-                                      solveFromPointM (fromJust yNDM)
-                                      Just <$> getObjValueM
-                                else pure Nothing
-                      
                     
                     yArchive %= insertYMdl (mkYMdl zexp yNDM)
                     case yNDM of
                         Nothing -> error $ "reoptimizing was infeasible [should not happen]"
                         Just yND -> do
-                            logM $ "\t" ++ show yND ++ " lb=" ++ show lbM
+                            logM $ "\t" ++ show yND 
 
                             -- explore over the projection
                             xearchive@(XeArchive xear) <- use xeArchive
@@ -101,6 +92,7 @@ optimize = do
                             case checkXeMdl xereq xearchive of
                                 Just known -> do
                                         logM $ "\t" ++ show known ++ " [known]"
+                                        zoom searchRegion $ updateSR gbnds zexp pdir (Just yND) cutval
                                         pure ()
                                 Nothing -> do
                                     newsolutionM <- zoom optEff $ optEffExplore zexp pdir yND
@@ -111,23 +103,21 @@ optimize = do
                                     let sol = fromJust newsolutionM
                                         (ProjDir k) = pdir
 
-                                    logM $ "\t" ++ show sol
+                                    logM $ "\t" ++ show sol ++ " " ++ show optval
                                     bestVal %= min optval
                                     xeArchive %= insertXeMdl (mkXeMdl zexp sol)
                                     --logM $ "\t" ++ show y ++ " => " ++ show yND ++ " => " ++  show (fromJust newsolution) ++ " best=" ++ show newval                                                
-                                    searchRegion %= updateSR_noRR gbnds sol --without lowerbound
+                                    newval <- use bestVal
+                                    logM "\t[updateSR]"
+                                    zoom searchRegion $ updateSR gbnds zexp pdir (Just yND) newval 
+                                    logM "\t[updateSR_noRR]"
+                                    zoom searchRegion $ updateSR_noRR gbnds sol newval
 
                                     when (yND /= sol) $
                                         ndpts %= S.insert (_ptPerf sol)
                                         
-                            newval <- use bestVal
-                            if isNothing lbM
-                                then searchRegion %= updateSR gbnds zexp pdir (Just (yND,_szLB $ fromExplored zexp)) newval -- the zone will be discarded anyway so a dummy hyperopt
-                                else searchRegion %= updateSR gbnds zexp pdir (Just (yND,HyperOpt $ fromJust lbM)) newval 
                             yar <- use yArchive
-                            zoom searchRegion $ do
-                                (SRUB sr) <- get
-                                put $ SRUB $ [zi | zi <- sr, isNothing $ ExploredUB zi `checkYMdl` yar]
+                            searchRegion.srUB %= \sr -> [zi | zi <- sr, isNothing $ ExploredUB zi `checkYMdl` yar]
 
                             ndpts %= S.insert (_ptPerf yND)
                             optimize 
@@ -149,7 +139,7 @@ mkAlgorithm env dom funcoefs = do
                  <*> mkReoptMdl env dom
                  <*> mkOptEffCut env dom funcoefs
                  <*> mkOptEff env dom funcoefs
-                 <*> pure (SRUB [mkZone globalbounds])
+                 <*> mkSRUB env dom funcoefs globalbounds
                  <*> pure (XeArchive [])
                  <*> pure (YArchive [])
                  <*> pure S.empty

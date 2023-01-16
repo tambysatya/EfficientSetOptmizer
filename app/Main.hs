@@ -12,14 +12,14 @@ main = void mainKS
 
 mainKS =
     forM instances $ \(p,n) -> 
-    forM [1,2] $ \i -> do
+    forM [2] $ \i -> do
     --forM [1..10] $ \i -> do
         let name = mkKSName p n i             
         env <- newIloEnv
         dom@(objs,_,_,_) <- read1KS name
         let coefs = foldr1 (zipWith (+)) objs
             funcoefs = FunCoefs $ zip [1..] $ fmap negate coefs
-        val <- runAlgorithm "ar-full" "kp.log" env dom funcoefs
+        val <- runAlgorithm "ar+splitexplore" "kp.log" env dom funcoefs
         --val <- runAlgorithm "cut-prdir=cdir-nolb" "kp.log" env dom funcoefs
         print val
          
