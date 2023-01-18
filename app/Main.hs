@@ -12,7 +12,8 @@ main = void mainKS
 
 mainKS =
     forM instances $ \(p,n) -> 
-    forM [1..10] $ \i -> do
+    forM [3..10] $ \i -> do
+    --forM [1..10] $ \i -> do
         let name = mkKSName p n i             
         env <- newIloEnv
         dom@(objs,_,_,_) <- read1KS name
