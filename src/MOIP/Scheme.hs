@@ -121,8 +121,8 @@ _solveFromPoint moip pt = do
     touchForeignPtr mip
     pure ret
 
-_ommitConstraintOnObj :: MOIPScheme -> Int -> IO ()
-_ommitConstraintOnObj (MOIPScheme lp ovars dvars octrs _ ) k = lp `lpRemove` (octrs A.! k)
+_omitConstraintOnObj :: MOIPScheme -> Int -> IO ()
+_omitConstraintOnObj (MOIPScheme lp ovars dvars octrs _ ) k = lp `lpRemove` (octrs A.! k)
 
 _addConstraintOnObj :: MOIPScheme -> Int -> IO ()
 _addConstraintOnObj (MOIPScheme lp ovars dvars octrs _ ) k = lp `lpAdd` (octrs A.! k)

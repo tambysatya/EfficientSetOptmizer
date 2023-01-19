@@ -28,7 +28,7 @@ instance Show HyperOpt where show (HyperOpt s) = "hyperopt="++ show s
 
 data UB = UB {_szU :: !Bound,
               _szDefiningPoint :: ! (A.Array Int [Point]),
-              _szMaxProj :: (Double, ProjDir),
+              _szMaxProj :: ((Int,Double), ProjDir),
               _szLB :: HyperOpt
               }
 
@@ -55,7 +55,7 @@ instance Boundary ExploredUB where
 
 
 mkZone :: GlobalBounds -> UB
-mkZone (yA,yI) = UB (fmap (+1) $ toBound yA) (A.listArray (1,p) $ take p $ repeat []) (0,ProjDir 2) $ HyperOpt (-maxbound)
+mkZone (yA,yI) = UB (fmap (+1) $ toBound yA) (A.listArray (1,p) $ take p $ repeat []) ((-p,0),ProjDir 2) $ HyperOpt (-maxbound)
     where (1,p) = A.bounds $ toBound yA
 
 
@@ -76,8 +76,8 @@ child (yA, (Ideal yI)) pt ub (ChildDir cdir)
       | otherwise = Nothing
     where p = snd $ A.bounds childub
           childub = _szU ub A.// [(cdir, _ptPerf pt A.! cdir)]
-          childmaxproj = (projVal yA ub $ ProjDir cdir, ProjDir cdir)  --projdir = child dir
-          -- childmaxproj = computeMaxProj yA childub  --hypervolume
+          --childmaxproj = (projVal yA ub $ ProjDir cdir, ProjDir cdir)  --projdir = child dir
+          childmaxproj = computeMaxProj yA childub  --hypervolume
           childdefpts = A.array (1,p) $ (cdir,[pt]):[(i, validPts) | i <- [1..p],
                                                                      i /= cdir, 
                                                                      let pts = _szDefiningPoint ub A.! i
@@ -92,11 +92,15 @@ child (yA, (Ideal yI)) pt ub (ChildDir cdir)
 {- Utils -}
 
              
-computeMaxProj :: AntiIdeal -> Bound -> (Double, ProjDir)
+computeMaxProj :: AntiIdeal -> Bound -> ((Int,Double), ProjDir)
 computeMaxProj yA ub = L.minimumBy (compare `on` fst) [(projVal yA ub $ ProjDir i, ProjDir i)  | i <- [1..p], ub A.! i /= (toBound yA A.! i + 1)]
     where (_,p) = A.bounds ub
           -- projVal is negated since we manipulates min heap
-projVal yA ub i = negate $ sum $ logBase 2 <$> zipWith (-) (A.elems $ proj i yA) (A.elems $ proj i ub)
+projVal yA ub (ProjDir i) = --negate $ sum $ logBase 2 <$> zipWith (-) (A.elems $ proj i yA) (A.elems $ proj i ub)
+        (negate $ p-length definedComp,
+         negate $ sum $ [logBase 2 $ (toBound yA A.! j) - (toBound ub A.! j)  | j <- definedComp, j /= i])
+    where definedComp = [j | j <- [1..p], toBound ub A.! j < toBound yA A.! j]
+          p = dimension ub
 
 
 

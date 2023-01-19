@@ -56,10 +56,72 @@ optimize = do
             cutval <- use bestVal
             let zexp = selectZone sr
                 (_,pdir) = _szMaxProj $ fromExplored zexp
+                (ProjDir l) = pdir
                 srsize = srSize sr
-            logM $ "exploring: " ++ show zexp ++  " " ++ show pdir ++ " size=" ++ show srsize  ++ " cutval=" ++ show cutval
+            --let (SRUB sr') = sr                    
+            --logM $ "SR=" ++ show [(zi,_szMaxProj zi) | zi <- sr']
+            logM $ "exploring: " ++ show zexp ++  " " ++ show pdir ++ " hv=" ++ show (fst $ _szMaxProj $ fromExplored zexp) ++ " size=" ++ show srsize  ++ " cutval=" ++ show cutval
             stats.lmax %= max srsize
             stats.ltotal += srsize
+            lbM <- zoom optEffLB $ do
+                    setLocalUpperBoundM zexp
+                    omitConstraintOnObjM l
+                    let (AntiIdeal yA) = fst gbnds
+                    ptM <- if (toBound zexp A.! l >= yA A.! l) 
+                         then do
+                                logM $ "[WARNING]\t no defining point"
+                                solveM
+                         else solveFromPointM (head $ _szDefiningPoint (fromExplored zexp) A.! l)
+
+                    retM <- case ptM of
+                                Nothing -> pure Nothing
+                                Just pt -> do
+                                    optval <- getObjValueM
+                                    if SubOpt optval >= cutval
+                                        then pure Nothing --  No point in the projection improves the estimation
+                                        else pure $ Just (optval,pt)
+                    addConstraintOnObjM l
+                    pure retM
+            case lbM of
+                {- No feasible point in the projection -}
+                Nothing -> do
+                    logM $ "\t X [compute lb]"
+                    stats.nbInfeasible += 1
+                    zoom searchRegion $ updateSR gbnds zexp pdir Nothing cutval
+                    yArchive %= insertYMdl (mkYMdl zexp Nothing)
+                    optimize 
+                Just (lb,lbPt) -> do
+                    weakND <- zoom exploreMdl $ do 
+                                setProj pdir
+                                setLocalUpperBoundM zexp
+                                setCutUB $ fromSubOpt cutval
+                                fromJust <$> solveFromPointM lbPt
+                    yND <- zoom reoptMdl $ do
+                                reoptimizeFromM weakND
+                                fromJust <$> solveFromPointM weakND
+
+                    yArchive %= insertYMdl (mkYMdl zexp (Just yND))
+
+                    bestSol <- zoom optEff $ fromJust <$> optEffExplore zexp pdir yND
+                    bestval <- SubOpt <$> zoom optEff getObjValueM
+                    logM $ "\t " ++ show bestSol ++ " val=" ++ show bestval ++ " [lb=" ++ show lb ++ "]"
+                    logM "\t [updateSR with yND]"
+                    zoom searchRegion $ updateSR gbnds zexp pdir (Just (HyperOpt lb,yND)) bestval 
+                    when (bestSol /= yND) $ do
+                        logM "\t [updateSR with bestSol]"
+                        zoom searchRegion $ updateSR gbnds zexp pdir (Just (HyperOpt lb,bestSol)) bestval 
+                        ndpts %= S.insert (_ptPerf bestSol)
+                    ndpts %= S.insert (_ptPerf yND)
+                    bestVal %= min bestval
+                    
+                    optimize
+                    
+
+
+
+
+
+            {-
             ptM <- zoom exploreMdl $ do 
                     setProj pdir
                     setLocalUpperBoundM zexp
@@ -122,7 +184,7 @@ optimize = do
                             ndpts %= S.insert (_ptPerf yND)
                             optimize 
 
-            
+                -} 
                     
 logM :: (MonadIO m) => String -> StateT a m ()
 logM text = liftIO $ putStrLn text

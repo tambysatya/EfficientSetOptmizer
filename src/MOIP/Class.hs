@@ -47,13 +47,13 @@ startFrom moip = _startFrom (toMOIPScheme moip)
 setObjectiveCoef :: (SimpleMOIP a) => a -> Int -> Double -> IO () -- | Modify the weight of the objective f_k in the objective function
 setObjectiveCoef moip i = _setObjectiveCoef (toMOIPScheme moip) i
 
-ommitConstraintOnObj :: (SimpleMOIP a) => a -> Int -> IO ()
-ommitConstraintOnObj moip = _ommitConstraintOnObj (toMOIPScheme moip)
+omitConstraintOnObj :: (SimpleMOIP a) => a -> Int -> IO ()
+omitConstraintOnObj moip = _omitConstraintOnObj (toMOIPScheme moip)
 
-ommitConstraintOnObjM :: (SimpleMOIP a, MonadIO m) => Int -> StateT a m ()
-ommitConstraintOnObjM i = do
+omitConstraintOnObjM :: (SimpleMOIP a, MonadIO m) => Int -> StateT a m ()
+omitConstraintOnObjM i = do
     me <- get
-    liftIO $ ommitConstraintOnObj me i
+    liftIO $ omitConstraintOnObj me i
 
 addConstraintOnObj :: (SimpleMOIP a) => a -> Int -> IO ()
 addConstraintOnObj moip = _addConstraintOnObj (toMOIPScheme moip)

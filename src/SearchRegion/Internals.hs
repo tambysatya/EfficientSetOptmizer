@@ -134,8 +134,10 @@ deleteZone ub (SRUB sr) = SRUB $ L.deleteBy ((==) `on` toBound) ub sr
 
 
 selectZone :: SRUB -> ExploredUB
---selectZone (SRUB _ sr) = ExploredUB $ L.minimumBy (compare `on` (fst . view szMaxProj)) sr -- minimumBy since we negates the values
-selectZone (SRUB sr) = ExploredUB $ L.maximumBy (compare `on` view szLB) sr -- selects the most promising zone (to find the optimum faster)
+selectZone (SRUB sr) = ExploredUB $ L.minimumBy (compare `on` (fst . view szMaxProj)) sr -- maximumBy since we negates the values
+--selectZone (SRUB sr) = ExploredUB $ L.minimumBy (compare `on` (fst . view szMaxProj)) sr -- minimumBy since we negates the values
+--selectZone (SRUB sr) = ExploredUB $ L.minimumBy (compare `on` view szLB) sr -- selects the most promising zone (to find the optimum faster)
+
 
 emptySR :: SRUB -> Bool
 emptySR (SRUB sr) = null sr

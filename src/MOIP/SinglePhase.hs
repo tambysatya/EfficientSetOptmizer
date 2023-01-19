@@ -77,7 +77,7 @@ mkExploreMdl env dom (FunCoefs funcoefs) = do
 
     {- Set the objective function to be minimized -}
     _setObjectiveCoef moip 1 1
-    _ommitConstraintOnObj moip 1
+    _omitConstraintOnObj moip 1
 
 
     pure $ ExploreMdl moip (ProjDir 1) cut
@@ -118,7 +118,7 @@ setProj (ProjDir pdir) = do
             _setObjectiveCoef moip pdir 1
 
             _addConstraintOnObj moip cur 
-            _ommitConstraintOnObj moip pdir
+            _omitConstraintOnObj moip pdir
     put $ setCurProj me (ProjDir pdir)
     --put $ ExploreMdl moip (ProjDir pdir) cut
 
