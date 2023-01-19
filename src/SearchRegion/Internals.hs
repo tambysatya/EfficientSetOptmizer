@@ -33,19 +33,19 @@ updateSR gbnds zexp pdir Nothing _ (SRUB mdl sr) = SRUB mdl $ catMaybes $ update
 updateSR gbnds zexp pdir@(ProjDir k) (Just (pt,hopt)) estimation (SRUB mdl sr) = SRUB mdl $ sr >>= updateZoneJustWithRR gbnds zexp hopt pdir lb pt estimation
     where lb = _ptPerf pt A.! k
 -}
-updateSR :: (MonadIO m) => GlobalBounds -> ExploredUB -> ProjDir -> Maybe (HyperOpt, Point) -> SubOpt -> SRUBT m ()
+updateSR :: (MonadIO m) => GlobalBounds -> ExploredUB -> ProjDir -> Maybe (HyperOpt, Point, SubOpt) -> SubOpt -> SRUBT m ()
 updateSR gbnds zexp pdir Nothing _ = do
     sr <- use srUB
     srUB .= catMaybes (updateZoneNothing gbnds zexp pdir <$> sr)
-updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt)) estimation@(SubOpt s) = do --SRUB mdl $ sr >>= updateZoneJustWithRR gbnds zexp hopt pdir lb pt estimation
+updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval)) estimation@(SubOpt s) = do --SRUB mdl $ sr >>= updateZoneJustWithRR gbnds zexp hopt pdir lb pt estimation
         sr <- use srUB
-        ret <- forM sr $ \u -> updateZoneJustWithRR gbnds zexp pdir hopt lb_l pt estimation u
+        ret <- forM sr $ \u -> updateZoneJustWithRR gbnds zexp pdir hopt lb_l (pt,ptval) estimation u
 
         srUB .= concat ret
     where lb_l = _ptPerf pt A.! l
 
 
-updateSR_noRR :: (MonadIO m) => GlobalBounds -> Point -> SubOpt -> SRUBT m ()
+updateSR_noRR :: (MonadIO m) => GlobalBounds -> (Point,SubOpt) -> SubOpt -> SRUBT m ()
 updateSR_noRR gbnds pt (SubOpt estimation) = do
     sr <- use srUB 
     ret <- forM sr $ \u -> updateZoneJustReopt gbnds u pt
@@ -70,7 +70,7 @@ updateZoneNothing gbnds (ExploredUB zexp) pdir  z
 
 
 -- TODO strict evaluation
-updateZoneJustWithRR :: (MonadIO m) => GlobalBounds -> ExploredUB -> ProjDir -> HyperOpt -> Double ->Point -> SubOpt -> UB -> SRUBT m [UB]
+updateZoneJustWithRR :: (MonadIO m) => GlobalBounds -> ExploredUB -> ProjDir -> HyperOpt -> Double -> (Point,SubOpt) -> SubOpt -> UB -> SRUBT m [UB]
 updateZoneJustWithRR gbnds zexp pdir hopt lb_l pt estimation@(SubOpt cur) ub = do
             newzones <- updateZoneJustReopt gbnds ub pt
             ret <- forM newzones $ applyReductionRule zexp pdir hopt lb_l estimation
@@ -80,20 +80,20 @@ updateZoneJustWithRR gbnds zexp pdir hopt lb_l pt estimation@(SubOpt cur) ub = d
 
 {-| Before splitting a zone, computes a lowerbound using the point as a warmstart.
     This approximates the lowerbound of the children -}
-updateZoneJust :: GlobalBounds -> UB -> Point -> [UB]
-updateZoneJust gbnds ub pt
-    | pt `domS` ub = catMaybes [child gbnds pt ub i| i <- ChildDir <$> [1..p]]
-    | pt `domL` ub = [updateDefiningPoints pt ub]
+updateZoneJust :: GlobalBounds -> UB -> (Point,SubOpt) -> [UB]
+updateZoneJust gbnds ub (pt,ptval)
+    | pt `domS` ub = catMaybes [child gbnds pt ptval ub i| i <- ChildDir <$> [1..p]]
+    | pt `domL` ub = [updateDefiningPoints pt ptval ub]
     | otherwise = [ub]
   where p = dimension ub
-updateZoneJustReopt :: (MonadIO m) => GlobalBounds -> UB -> Point -> SRUBT m [UB]
-updateZoneJustReopt gbnds ub pt 
+updateZoneJustReopt :: (MonadIO m) => GlobalBounds -> UB -> (Point,SubOpt) -> SRUBT m [UB]
+updateZoneJustReopt gbnds ub (pt,ptval) 
         | pt `domS` ub = do 
                 liftIO $ putStrLn $ "\t\t Splitting " ++ show ub  ++ " lb=" ++ show (_szLB ub)
-                pure $ catMaybes [child gbnds pt ub i | i <- ChildDir <$> [1..p]]
+                pure $ catMaybes [child gbnds pt ptval ub i | i <- ChildDir <$> [1..p]]
         | pt `domL` ub = do -- pure [updateDefiningPoints pt ub]
                 liftIO $ putStrLn $ "\t\t Updating " ++ show ub ++ " lb=" ++ show (_szLB ub)
-                pure [updateDefiningPoints pt ub]
+                pure [updateDefiningPoints pt ptval ub]
 
         | otherwise = pure [ub]
   where p = dimension ub
@@ -134,9 +134,18 @@ deleteZone ub (SRUB sr) = SRUB $ L.deleteBy ((==) `on` toBound) ub sr
 
 
 selectZone :: SRUB -> ExploredUB
-selectZone (SRUB sr) = ExploredUB $ L.minimumBy (compare `on` (fst . view szMaxProj)) sr -- maximumBy since we negates the values
+--selectZone (SRUB sr) = ExploredUB $ L.minimumBy (compare `on` (fst . view szMaxProj)) sr -- maximumBy since we negates the values
 --selectZone (SRUB sr) = ExploredUB $ L.minimumBy (compare `on` (fst . view szMaxProj)) sr -- minimumBy since we negates the values
 --selectZone (SRUB sr) = ExploredUB $ L.minimumBy (compare `on` view szLB) sr -- selects the most promising zone (to find the optimum faster)
+selectZone (SRUB sr) = ExploredUB $ L.minimumBy f sr -- selects the most promising zone (to find the optimum faster)
+    where f z1 z2
+                | lb1 /= lb2 = compare lb1 lb2
+                | nbUndef1 /= nbUndef2 = compare nbUndef1 nbUndef2
+                | otherwise = compare hv1 hv2 
+
+            where (lb1,lb2) = (_szLB z1, _szLB z2)
+                  ((nbUndef1,hv1),(nbUndef2,hv2)) = (_szMaxProj z1, _szMaxProj z2)
+                
 
 
 emptySR :: SRUB -> Bool

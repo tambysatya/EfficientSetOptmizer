@@ -27,7 +27,7 @@ instance Show HyperOpt where show (HyperOpt s) = "hyperopt="++ show s
 
 
 data UB = UB {_szU :: !Bound,
-              _szDefiningPoint :: ! (A.Array Int [Point]),
+              _szDefiningPoint :: ! (A.Array Int [(Point,SubOpt)]),
               _szMaxProj :: ((Int,Double), ProjDir),
               _szLB :: HyperOpt
               }
@@ -64,10 +64,11 @@ mkZone (yA,yI) = UB (fmap (+1) $ toBound yA) (A.listArray (1,p) $ take p $ repea
 {-| Generates the child *childir* from ub and pt after exploring zexp. Checks if the reduction rule applies -}
 child :: GlobalBounds 
        -> Point -- The point that have been found (minimizing y_l over u_{-l})
+       -> SubOpt 
        -> UB  -- The search zone to be subdivided
        -> ChildDir -- The direction of the subdivision (index of the child) 
        -> Maybe UB -- The result if it stil has a componnent to explore 
-child (yA, (Ideal yI)) pt ub (ChildDir cdir) 
+child (yA, (Ideal yI)) pt subopt ub (ChildDir cdir) 
       | _ptPerf pt A.! cdir == yI A.! cdir = Nothing -- Ideal contributing point found
       | and [not $ null $  _szDefiningPoint child A.! i |  -- All unbounded components have at least one defining point
                       i <- [1..p], 
@@ -78,10 +79,10 @@ child (yA, (Ideal yI)) pt ub (ChildDir cdir)
           childub = _szU ub A.// [(cdir, _ptPerf pt A.! cdir)]
           --childmaxproj = (projVal yA ub $ ProjDir cdir, ProjDir cdir)  --projdir = child dir
           childmaxproj = computeMaxProj yA childub  --hypervolume
-          childdefpts = A.array (1,p) $ (cdir,[pt]):[(i, validPts) | i <- [1..p],
-                                                                     i /= cdir, 
-                                                                     let pts = _szDefiningPoint ub A.! i
-                                                                         validPts = [pti | pti <- pts, _ptPerf pti A.! cdir < _ptPerf pt A.! cdir]]
+          childdefpts = A.array (1,p) $ (cdir,[(pt,subopt)]):[(i, validPts) | i <- [1..p],
+                                                                              i /= cdir, 
+                                                                              let pts = _szDefiningPoint ub A.! i
+                                                                                  validPts = [(pti,vi) | (pti,vi) <- pts, _ptPerf pti A.! cdir < _ptPerf pt A.! cdir]]
           child = ub & szU .~ childub
                      & szDefiningPoint .~ childdefpts
                      & szMaxProj .~ childmaxproj
@@ -104,10 +105,10 @@ projVal yA ub (ProjDir i) = --negate $ sum $ logBase 2 <$> zipWith (-) (A.elems 
 
 
 
-updateDefiningPoints :: Point -> UB -> UB
-updateDefiningPoints pt zone = foldr f zone $ ProjDir <$> [1..dimension zone]
+updateDefiningPoints :: Point -> SubOpt -> UB -> UB
+updateDefiningPoints pt ptval zone = foldr f zone $ ProjDir <$> [1..dimension zone]
     where f pdir@(ProjDir i) acc  
-                | proj pdir pt `domS` proj pdir zone = acc & szDefiningPoint . ix i %~ (pt:) 
+                | proj pdir pt `domS` proj pdir zone = acc & szDefiningPoint . ix i %~ ((pt,ptval):) 
                 | otherwise = acc
 
 childKHasValidDefPoint (AntiIdeal yA,_) pt k z = and  [not $ null $ validPts | 
@@ -115,6 +116,6 @@ childKHasValidDefPoint (AntiIdeal yA,_) pt k z = and  [not $ null $ validPts |
                                         i /= k,
                                         _szU z A.! i /= yA A.! i,
                                         let pts = _szDefiningPoint z A.! i
-                                            validPts = [pti | pti <- pts, _ptPerf pti A.! k < _ptPerf pt A.! k]]
+                                            validPts = [pti | (pti,_) <- pts, _ptPerf pti A.! k < _ptPerf pt A.! k]]
         where (_,p) = A.bounds $ _szU z
 

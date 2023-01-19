@@ -10,6 +10,8 @@ import Control.Monad
 import Control.Monad.State
 import Control.Lens
 import qualified Data.Array as A
+import qualified Data.List as L
+import Data.Function
 import Data.Maybe
 
 import System.CPUTime
@@ -60,7 +62,7 @@ optimize = do
                 srsize = srSize sr
             --let (SRUB sr') = sr                    
             --logM $ "SR=" ++ show [(zi,_szMaxProj zi) | zi <- sr']
-            logM $ "exploring: " ++ show zexp ++  " " ++ show pdir ++ " hv=" ++ show (fst $ _szMaxProj $ fromExplored zexp) ++ " size=" ++ show srsize  ++ " cutval=" ++ show cutval
+            logM $ "exploring: " ++ show zexp ++  " " ++ show pdir ++ " " ++ show (_szLB $ fromExplored zexp) ++ " hv=" ++ show (fst $ _szMaxProj $ fromExplored zexp) ++ " size=" ++ show srsize  ++ " cutval=" ++ show cutval
             stats.lmax %= max srsize
             stats.ltotal += srsize
             lbM <- zoom optEffLB $ do
@@ -71,7 +73,10 @@ optimize = do
                          then do
                                 logM $ "[WARNING]\t no defining point"
                                 solveM
-                         else solveFromPointM (head $ _szDefiningPoint (fromExplored zexp) A.! l)
+                         else do 
+                                let pts = _szDefiningPoint (fromExplored zexp) A.! l
+                                    bestpt = fst $ L.minimumBy (compare `on` snd) pts
+                                solveFromPointM bestpt -- (head $ _szDefiningPoint (fromExplored zexp) A.! l)
 
                     retM <- case ptM of
                                 Nothing -> pure Nothing
@@ -96,9 +101,11 @@ optimize = do
                                 setLocalUpperBoundM zexp
                                 setCutUB $ fromSubOpt cutval
                                 fromJust <$> solveFromPointM lbPt
-                    yND <- zoom reoptMdl $ do
+                    (yND,yNDval) <- zoom reoptMdl $ do
                                 reoptimizeFromM weakND
-                                fromJust <$> solveFromPointM weakND
+                                ret <- fromJust <$> solveFromPointM weakND
+                                val <- getObjValueM
+                                pure (ret, SubOpt val)
 
                     yArchive %= insertYMdl (mkYMdl zexp (Just yND))
 
@@ -106,13 +113,14 @@ optimize = do
                     bestval <- SubOpt <$> zoom optEff getObjValueM
                     logM $ "\t " ++ show bestSol ++ " val=" ++ show bestval ++ " [lb=" ++ show lb ++ "]"
                     logM "\t [updateSR with yND]"
-                    zoom searchRegion $ updateSR gbnds zexp pdir (Just (HyperOpt lb,yND)) bestval 
+                    bestVal %= min bestval
+                    curval <- use bestVal
+                    zoom searchRegion $ updateSR gbnds zexp pdir (Just (HyperOpt lb,yND,yNDval)) curval
                     when (bestSol /= yND) $ do
                         logM "\t [updateSR with bestSol]"
-                        zoom searchRegion $ updateSR gbnds zexp pdir (Just (HyperOpt lb,bestSol)) bestval 
+                        zoom searchRegion $ updateSR gbnds zexp pdir (Just (HyperOpt lb,bestSol,bestval)) curval
                         ndpts %= S.insert (_ptPerf bestSol)
                     ndpts %= S.insert (_ptPerf yND)
-                    bestVal %= min bestval
                     
                     optimize
                     
