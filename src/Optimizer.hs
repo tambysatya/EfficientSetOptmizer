@@ -139,7 +139,7 @@ mkAlgorithm env dom funcoefs = do
                  <*> mkReoptMdl env dom
                  <*> mkOptEffCut env dom funcoefs
                  <*> mkOptEff env dom funcoefs
-                 <*> mkSRUB env dom funcoefs globalbounds
+                 <*> pure (mkSRUB globalbounds) --mkSRUB env dom funcoefs globalbounds
                  <*> pure (XeArchive [])
                  <*> pure (YArchive [])
                  <*> pure S.empty
