@@ -68,7 +68,7 @@ child :: GlobalBounds
        -> UB  -- The search zone to be subdivided
        -> ChildDir -- The direction of the subdivision (index of the child) 
        -> Maybe UB -- The result if it stil has a componnent to explore 
-child (yA, (Ideal yI)) pt subopt ub (ChildDir cdir) 
+child (yA, ideal@(Ideal yI)) pt subopt ub (ChildDir cdir) 
       | _ptPerf pt A.! cdir == yI A.! cdir = Nothing -- Ideal contributing point found
       | and [not $ null $  _szDefiningPoint child A.! i |  -- All unbounded components have at least one defining point
                       i <- [1..p], 
@@ -77,8 +77,8 @@ child (yA, (Ideal yI)) pt subopt ub (ChildDir cdir)
       | otherwise = Nothing
     where p = snd $ A.bounds childub
           childub = _szU ub A.// [(cdir, _ptPerf pt A.! cdir)]
-          childmaxproj = (projVal yA ub $ ProjDir cdir, ProjDir cdir)  --projdir = child dir
-          --childmaxproj = computeMaxProj yA childub  --hypervolume
+          --childmaxproj = (projVal yA yI ub $ ProjDir cdir, ProjDir cdir)  --projdir = child dir
+          childmaxproj = computeMaxProj (yA,ideal) childub  --hypervolume
           childdefpts = A.array (1,p) $ (cdir,[(pt,subopt)]):[(i, validPts) | i <- [1..p],
                                                                               i /= cdir, 
                                                                               let pts = _szDefiningPoint ub A.! i
@@ -93,13 +93,14 @@ child (yA, (Ideal yI)) pt subopt ub (ChildDir cdir)
 {- Utils -}
 
              
-computeMaxProj :: AntiIdeal -> Bound -> ((Int,Double), ProjDir)
-computeMaxProj yA ub = L.minimumBy (compare `on` fst) [(projVal yA ub $ ProjDir i, ProjDir i)  | i <- [1..p], ub A.! i /= (toBound yA A.! i + 1)]
+computeMaxProj :: GlobalBounds -> Bound -> ((Int,Double), ProjDir)
+computeMaxProj (yA,(Ideal yI)) ub = L.minimumBy (compare `on` fst) [(projVal yA yI ub $ ProjDir i, ProjDir i)  | i <- [1..p], ub A.! i /= (toBound yA A.! i + 1)]
     where (_,p) = A.bounds ub
           -- projVal is negated since we manipulates min heap
-projVal yA ub (ProjDir i) = --negate $ sum $ logBase 2 <$> zipWith (-) (A.elems $ proj i yA) (A.elems $ proj i ub)
+projVal yA yI ub (ProjDir i) = --negate $ sum $ logBase 2 <$> zipWith (-) (A.elems $ proj i yA) (A.elems $ proj i ub)
         (negate $ p-length definedComp,
-         negate $ sum $ [logBase 2 $ (toBound yA A.! j) - (toBound ub A.! j)  | j <- definedComp, j /= i])
+       --  negate $ sum $ [logBase 2 $ (toBound yA A.! j) - (toBound ub A.! j)  | j <- definedComp, j /= i]) -- FAUX
+         negate $ sum $ [logBase 2 $ (toBound ub A.! j) - (toBound yI A.! j)  | j <- definedComp, j /= i]) 
     where definedComp = [j | j <- [1..p], toBound ub A.! j < toBound yA A.! j]
           p = dimension ub
 

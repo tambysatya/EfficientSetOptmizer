@@ -93,21 +93,23 @@ optimize = do
                     logM $ "\t X [compute lb]"
                     stats.nbInfeasible += 1
                     zoom searchRegion $ updateSR gbnds zexp pdir Nothing cutval
-                    yArchive %= insertYMdl (mkYMdl zexp Nothing)
                     optimize 
                 Just (lb,lbPt) -> do
+                    logM $ "\t lbPt=" ++ show lbPt ++ " " ++ show lb
                     weakND <- zoom exploreMdl $ do 
+
                                 setProj pdir
                                 setLocalUpperBoundM zexp
                                 setCutUB $ fromSubOpt cutval
                                 fromJust <$> solveFromPointM lbPt
+                    logM $ "\t weakND=" ++ show weakND
                     (yND,yNDval) <- zoom reoptMdl $ do
                                 reoptimizeFromM weakND
                                 ret <- fromJust <$> solveFromPointM weakND
                                 val <- getObjValueM
                                 pure (ret, SubOpt val)
+                    logM $ "\t yND=" ++ show yND
 
-                    yArchive %= insertYMdl (mkYMdl zexp (Just yND))
 
                     bestSol <- zoom optEff $ fromJust <$> optEffExplore zexp pdir yND
                     bestval <- SubOpt <$> zoom optEff getObjValueM
@@ -116,6 +118,14 @@ optimize = do
                     bestVal %= min bestval
                     curval <- use bestVal
                     zoom searchRegion $ updateSR gbnds zexp pdir (Just (HyperOpt lb,yND,yNDval)) curval
+
+                       -- We can also update from lbPT but we must check if it is non-dominated
+                       -- and update the estimation accordingly
+                    {-
+                    when (not $ yND `domL` lbPt) $ do
+                        logM "\t [updateSR with lbPT]"
+                        zoom searchRegion $ updateSR_noRR gbnds (lbPt,SubOpt lb) curval
+                    -}
                     when (bestSol /= yND) $ do
                         logM "\t [updateSR with bestSol]"
                         zoom searchRegion $ updateSR gbnds zexp pdir (Just (HyperOpt lb,bestSol,bestval)) curval
@@ -124,75 +134,6 @@ optimize = do
                     
                     optimize
                     
-
-
-
-
-
-            {-
-            ptM <- zoom exploreMdl $ do 
-                    setProj pdir
-                    setLocalUpperBoundM zexp
-                    setCutUB $ fromSubOpt cutval
-                    solveM
-            case ptM of
-                Nothing -> do
-                    logM $ "\t X"
-                    stats.nbInfeasible += 1
-                    zoom searchRegion $ updateSR gbnds zexp pdir Nothing cutval
-                    yArchive %= insertYMdl (mkYMdl zexp Nothing)
-                    optimize 
-                Just y -> do
-                    -- found a feasible point improving the best value
-                    logM $ "\t" ++ show y
-                    yNDM <- zoom reoptMdl $ do
-                                reoptimizeFromM y
-                                solveFromPointM y
-                    {- Lower bound over the ZONE (if non-empty)-}
-                    
-                    yArchive %= insertYMdl (mkYMdl zexp yNDM)
-                    case yNDM of
-                        Nothing -> error $ "reoptimizing was infeasible [should not happen]"
-                        Just yND -> do
-                            logM $ "\t" ++ show yND 
-
-                            -- explore over the projection
-                            xearchive@(XeArchive xear) <- use xeArchive
-                            let xereq = mkXeMdl zexp yND
-                            case checkXeMdl xereq xearchive of
-                                Just known -> do
-                                        logM $ "\t" ++ show known ++ " [known]"
-                                        zoom searchRegion $ updateSR gbnds zexp pdir (Just yND) cutval
-                                        pure ()
-                                Nothing -> do
-                                    newsolutionM <- zoom optEff $ optEffExplore zexp pdir yND
-                                    optval <- SubOpt <$> zoom optEff getObjValueM
-
-
-
-                                    let sol = fromJust newsolutionM
-                                        (ProjDir k) = pdir
-
-                                    logM $ "\t" ++ show sol ++ " " ++ show optval
-                                    bestVal %= min optval
-                                    xeArchive %= insertXeMdl (mkXeMdl zexp sol)
-                                    --logM $ "\t" ++ show y ++ " => " ++ show yND ++ " => " ++  show (fromJust newsolution) ++ " best=" ++ show newval                                                
-                                    newval <- use bestVal
-                                    logM "\t[updateSR]"
-                                    zoom searchRegion $ updateSR gbnds zexp pdir (Just yND) newval 
-                                    logM "\t[updateSR_noRR]"
-                                    zoom searchRegion $ updateSR_noRR gbnds sol newval
-
-                                    when (yND /= sol) $
-                                        ndpts %= S.insert (_ptPerf sol)
-                                        
-                            yar <- use yArchive
-                            searchRegion.srUB %= \sr -> [zi | zi <- sr, isNothing $ ExploredUB zi `checkYMdl` yar]
-
-                            ndpts %= S.insert (_ptPerf yND)
-                            optimize 
-
-                -} 
                     
 logM :: (MonadIO m) => String -> StateT a m ()
 logM text = liftIO $ putStrLn text
@@ -206,8 +147,8 @@ mkAlgorithm env dom funcoefs = do
        putStrLn $ "bounds of the domain:" ++ show (yA, yI)
        Algorithm <$> pure globalbounds
                  <*> mkExploreMdl env dom funcoefs
-                 <*> mkReoptMdl' yIPts env dom funcoefs
-                 -- <*> mkReoptMdl env dom
+                 -- <*> mkReoptMdl' yIPts env dom funcoefs
+                 <*> mkReoptMdl env dom
                  <*> mkOptEffCut env dom funcoefs
                  <*> mkOptEff env dom funcoefs
                  <*> pure (mkSRUB globalbounds) --mkSRUB env dom funcoefs globalbounds

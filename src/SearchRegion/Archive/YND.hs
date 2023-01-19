@@ -17,7 +17,7 @@ data YMdl = YMdl { _ymdlZone :: !ExploredUB,
                    _ymdlOpt :: !(Maybe Point)}
 
 instance Show YMdl where
-    show (YMdl z opt) = "optYND z=" ++ show (toBound $ fromExplored z) ++ " opt_" ++ show optproj ++ "=" ++ show opt 
+    show (YMdl z opt) = "optYND z=" ++ show (A.elems $ toBound $ fromExplored z) ++ " opt_" ++ show optproj ++ "=" ++ show opt 
         where optproj = snd $ _szMaxProj $ fromExplored z
 newtype YArchive = YArchive [YMdl] --TODO
 
@@ -40,15 +40,14 @@ _ymdlProj = snd . _szMaxProj . fromExplored . _ymdlZone
 
 
 yKnownBy :: ExploredUB -> YMdl -> Bool
-yKnownBy zexp archivemdl = tpdir == apdir
-                        && proj tpdir zexp `domL` proj tpdir aub
+yKnownBy zexp archivemdl = --tpdir == apdir
+                        proj apdir zexp `domL` proj apdir aub
                         && (case ptM of 
                                 Nothing -> True
                                 Just pt -> (toBound zexp A.! l) <= (_ptPerf pt A.! l))
     where 
           (YMdl aub ptM) = archivemdl
-          tpdir@(ProjDir l) = snd $ _szMaxProj $ fromExplored zexp
-          apdir = _ymdlProj archivemdl
+          apdir@(ProjDir l) = _ymdlProj archivemdl
 
 
 
