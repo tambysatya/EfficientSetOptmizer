@@ -1,10 +1,11 @@
 module MOIP.SinglePhase(
 maxval,
-ExploreMdl, ReoptMdl, OptEff, OptEffCut,
-FunCoefs (..),
-mkExploreMdl, mkReoptMdl, mkOptEff, mkOptEffCut,
-setProj, setCutUB, setCutEq,
-optEffExplore
+ExploreMdl, ReoptMdl, OptEff, OptEffCut
+,FunCoefs (..)
+,mkExploreMdl, mkReoptMdl, mkOptEff, mkOptEffCut
+,mkReoptMdl'
+,setProj, setCutUB, setCutEq
+,optEffExplore
 )
 
 where
@@ -14,8 +15,9 @@ import MOIP.Domain
 import MOIP.Class
 import SearchRegion.Class
 import SearchRegion.UB
-import IloCplex
+import IloCplex hiding (getObjValue)
 import LP
+import Data.Maybe
 
 import Control.Monad
 import Control.Monad.State
@@ -87,6 +89,27 @@ mkReoptMdl env dom = do
     moip <- mkMOIPScheme env dom
     forM_ [1..nbCrits moip] $ \i -> _setObjectiveCoef moip i 1
     pure $ ReoptMdl moip 
+
+mkReoptMdl' :: [Point] -> IloEnv -> Domain -> FunCoefs -> IO ReoptMdl
+mkReoptMdl' yIPts env dom funcoefs = do
+    moip <- mkMOIPScheme env dom
+    reopt <- mkReoptMdl env dom
+    opteff <- mkOptEff env dom funcoefs
+
+    optimizedVal <- forM yIPts $ \pti -> do
+        reopt `reoptimizeFrom` pti
+        yND <- fromJust <$> solveFromPoint reopt pti
+
+        reoptimizeFrom opteff yND
+        solveFromPoint opteff yND
+        getObjValue opteff 
+    let total = sum optimizedVal
+    forM (zip [1..nbCrits moip] optimizedVal) $ \(i, vi) -> _setObjectiveCoef moip i (vi/total)
+    pure $ ReoptMdl moip
+
+        
+
+
 
 mkOptEff :: IloEnv -> Domain -> FunCoefs -> IO OptEff
 mkOptEff env dom (FunCoefs funcoefs) = do

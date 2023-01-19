@@ -139,8 +139,8 @@ selectZone :: SRUB -> ExploredUB
 --selectZone (SRUB sr) = ExploredUB $ L.minimumBy (compare `on` view szLB) sr -- selects the most promising zone (to find the optimum faster)
 selectZone (SRUB sr) = ExploredUB $ L.minimumBy f sr -- selects the most promising zone (to find the optimum faster)
     where f z1 z2
-                | lb1 /= lb2 = compare lb1 lb2
                 | nbUndef1 /= nbUndef2 = compare nbUndef1 nbUndef2
+                | lb1 /= lb2 = compare lb1 lb2
                 | otherwise = compare hv1 hv2 
 
             where (lb1,lb2) = (_szLB z1, _szLB z2)

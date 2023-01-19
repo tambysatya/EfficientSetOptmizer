@@ -201,12 +201,13 @@ logM text = liftIO $ putStrLn text
 
 mkAlgorithm :: IloEnv -> Domain -> FunCoefs -> IO Algorithm
 mkAlgorithm env dom funcoefs = do
-       globalbounds <- computeGlobalBounds 
+       (globalbounds,yIPts) <- computeGlobalBounds 
        let (AntiIdeal yA, Ideal yI) = globalbounds
        putStrLn $ "bounds of the domain:" ++ show (yA, yI)
        Algorithm <$> pure globalbounds
                  <*> mkExploreMdl env dom funcoefs
-                 <*> mkReoptMdl env dom
+                 <*> mkReoptMdl' yIPts env dom funcoefs
+                 -- <*> mkReoptMdl env dom
                  <*> mkOptEffCut env dom funcoefs
                  <*> mkOptEff env dom funcoefs
                  <*> pure (mkSRUB globalbounds) --mkSRUB env dom funcoefs globalbounds
@@ -229,10 +230,10 @@ mkAlgorithm env dom funcoefs = do
                                 (optmax, optmin) <- (,) <$> _solve moipmax <*> _solve moipmin
                                 when (isNothing optmax || isNothing optmin) $ error "Unable to compute the bounds of the domain: the domain is empty"
                                 print (optmax,optmin)
-                                pure (_ptPerf (fromJust optmax) A.! i, _ptPerf (fromJust optmin) A.! i)
-                let (yA,yI) = unzip bnds
-                pure $ (AntiIdeal $ A.listArray (1,nbCrits moipmin) yA,
-                        Ideal $ A.listArray (1,nbCrits moipmin) yI)
+                                pure (_ptPerf (fromJust optmax) A.! i, _ptPerf (fromJust optmin) A.! i, fromJust optmin)
+                let (yA,yI,yIPts) = unzip3 bnds
+                pure $ ((AntiIdeal $ A.listArray (1,nbCrits moipmin) yA,
+                        Ideal $ A.listArray (1,nbCrits moipmin) yI), yIPts)
                             
 
 runAlgorithm' :: IloEnv -> Domain -> FunCoefs -> IO (SubOpt, Algorithm)
