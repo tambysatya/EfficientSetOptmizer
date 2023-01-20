@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module MOIP.Scheme.Type where
+module MOIP.Type where
 
 import MOIP.Domain
 

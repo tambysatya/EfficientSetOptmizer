@@ -1,5 +1,5 @@
 
-module MOIP.Scheme.Class
+module MOIP.Class
 
 (newIloObject, newIloObjectM, add, addM, remove, removeM
 ,setObjectiveCoef, setObjectiveCoefM

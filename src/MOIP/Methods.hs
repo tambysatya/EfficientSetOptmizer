@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module MOIP.Scheme.Methods
+module MOIP.Methods
 (OptValue
 , setObjectiveCoef
 , largeUpperBound, strictUpperBound, omitConstraintOnObj, addConstraintOnObj
