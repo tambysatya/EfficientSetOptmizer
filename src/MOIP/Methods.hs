@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module MOIP.Methods
 (OptValue
-, setObjectiveCoef
+, setObjectiveCoef, setMinimize, setMaximize
 , largeUpperBound, strictUpperBound, omitConstraintOnObj, addConstraintOnObj
 , objValue, solve, solveFromPoint
 , newIloObject, moipAdd, moipRemove
@@ -11,8 +11,8 @@ where
 
 import SearchRegion.Class
 import MOIP.Type
-import IloCplex hiding (solve, newIloObject)
-import qualified IloCplex as CPX (solve,newIloObject)
+import IloCplex hiding (solve, newIloObject, setMinimize, setMaximize)
+import qualified IloCplex as CPX (solve,newIloObject, setMinimize, setMaximize)
 
 import Control.Monad
 import Control.Lens
@@ -27,6 +27,12 @@ newtype OptValue = OptValue Double
 setObjectiveCoef :: MOIPScheme -> Int -> Double -> IO ()
 setObjectiveCoef moip i val = setLinearCoef fun (_objvars moip A.! i) val
     where fun = _objfun moip
+
+setMaximize :: MOIPScheme -> IO ()
+setMaximize moip = CPX.setMaximize $ _objfun moip
+
+setMinimize :: MOIPScheme -> IO ()
+setMinimize moip = CPX.setMinimize $ _objfun moip
 
 {-| Constraints -}
 largeUpperBound :: MOIPScheme -> A.Array Int Double ->  IO ()

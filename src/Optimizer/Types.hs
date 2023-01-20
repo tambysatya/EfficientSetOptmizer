@@ -4,7 +4,7 @@ module Optimizer.Types where
 import SearchRegion
 import MOIP
 import Optimizer.Models
-import IloCplex
+import IloCplex (IloEnv)
 
 import qualified Data.Set as S
 import Control.Monad
@@ -20,8 +20,7 @@ data Algorithm = Algorithm {
                     _globalBounds :: GlobalBounds,
                     _exploreMdl :: ExploreMdl,
                     _reoptMdl :: ReoptMdl,
-                    _optEff :: OptEffCut,
-                    _optEffLB :: OptEff,
+                    _optEff :: LBMdl,
 
                     _searchRegion :: SRUB,
                     
@@ -45,39 +44,42 @@ type AlgorithmT = StateT Algorithm
 logM :: (MonadIO m) => String -> StateT a m ()
 logM text = liftIO $ putStrLn text
 
+maxval = 2^32
 
 
 mkAlgorithm :: IloEnv -> Domain -> FunCoefs -> IO Algorithm
 mkAlgorithm env dom funcoefs = do
-       (globalbounds,yIPts) <- computeGlobalBounds 
+       (globalbounds,yIPts) <- computeGlobalBounds  env dom
        let (AntiIdeal yA, Ideal yI) = globalbounds
        putStrLn $ "bounds of the domain:" ++ show (yA, yI)
        Algorithm <$> pure globalbounds
                  <*> mkExploreMdl env dom funcoefs
-                 <*> mkReoptMdl' yIPts env dom funcoefs
-                 -- <*> mkReoptMdl env dom
-                 <*> mkOptEffCut env dom funcoefs
-                 <*> mkOptEff env dom funcoefs
+                 -- <*> mkReoptMdl' yIPts env dom funcoefs
+                 <*> mkReoptMdl env dom
+                 <*> mkLBMdl env dom funcoefs
                  <*> pure (mkSRUB globalbounds) --mkSRUB env dom funcoefs globalbounds
                  <*> pure S.empty
-                 -- <*> pure (SubOpt 9218)
                  <*> pure (SubOpt maxval)
                  <*> pure mkStats
-    where computeGlobalBounds = do
-                moipmin <- mkMOIPScheme env dom
-                moipmax <- mkMOIPScheme env dom
-                _setMaximize moipmax
-                bnds <- forM [1..nbCrits moipmin] $ \i -> do
-                                when (i /= 1) $ do 
-                                    _setObjectiveCoef moipmin (i-1) 0
-                                    _setObjectiveCoef moipmax (i-1) 0
-                                _setObjectiveCoef moipmax i 1
-                                _setObjectiveCoef moipmin i 1
-                                (optmax, optmin) <- (,) <$> _solve moipmax <*> _solve moipmin
-                                when (isNothing optmax || isNothing optmin) $ error "Unable to compute the bounds of the domain: the domain is empty"
-                                print (optmax,optmin)
-                                pure (_ptPerf (fromJust optmax) A.! i, _ptPerf (fromJust optmin) A.! i, fromJust optmin)
-                let (yA,yI,yIPts) = unzip3 bnds
-                pure $ ((AntiIdeal $ A.listArray (1,nbCrits moipmin) yA,
-                        Ideal $ A.listArray (1,nbCrits moipmin) yI), yIPts)
- 
+
+computeGlobalBounds :: IloEnv -> Domain -> IO (GlobalBounds, [Point])
+computeGlobalBounds env dom = do
+        moip <- mkReoptMdl env dom
+        forM [1..p] $ \i -> setObjectiveCoef moip i 0
+        (yAPts, yIPts) <- unzip <$> (forM [1..p] $ \i -> do
+                                setObjectiveCoef moip i 1
+                                when (i > 1) $ setObjectiveCoef moip (i-1) 0
+
+                                
+                                yIPtM <- setMinimize moip >> solve moip
+                                yAPtM <- setMaximize moip >> solve moip
+                                case (yAPtM, yIPtM) of
+                                    (Just yAPt, Just yIPt) -> pure $ (yAPt, yIPt)
+                                    _ -> error "computeGlobalBounds: infeasible domain")
+        let yA = A.listArray (1,p) $ fmap (\(i,pti) -> _ptPerf pti A.! i) (zip [1..] yAPts)
+            yI = A.listArray (1,p) $ fmap (\(i,pti) -> _ptPerf pti A.! i) (zip [1..] yIPts)
+                                  
+        pure ((AntiIdeal yA, Ideal yI), yIPts)
+        
+   where p = nbObjVars dom
+

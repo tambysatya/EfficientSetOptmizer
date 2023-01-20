@@ -4,7 +4,7 @@ module MOIP.Class
 (
 MOIP(..)
 ,newIloObject, newIloObjectM, add, addM, remove, removeM
-,setObjectiveCoef, setObjectiveCoefM
+,setObjectiveCoef, setObjectiveCoefM, setMinimize, setMinimizeM, setMaximize, setMaximizeM
 ,omitConstraintOnObj, omitConstraintOnObjM, addConstraintOnObj, addConstraintOnObjM
 ,strictUpperBound, strictUpperBoundM, largeUpperBound, largeUpperBoundM
 ,objValue, objValueM
@@ -47,6 +47,11 @@ remove moip a = liftIO $ MOIP.moipRemove (toMOIPScheme moip) a
     {-| Objective function -}
 setObjectiveCoef :: (MOIP a) => a -> Int -> Double -> IO ()
 setObjectiveCoef mdl i v = MOIP.setObjectiveCoef (toMOIPScheme mdl) i v
+
+setMinimize :: (MOIP a) => a -> IO ()
+setMinimize moip = MOIP.setMinimize (toMOIPScheme moip)
+setMaximize :: (MOIP a) => a -> IO ()
+setMaximize moip = MOIP.setMaximize (toMOIPScheme moip)
 
     {-| Constraints -}
 omitConstraintOnObj :: (MOIP a) =>  a -> Int -> IO ()
@@ -105,6 +110,15 @@ setObjectiveCoefM :: (MOIP a, MonadIO m) => Int -> Double -> StateT a m ()
 setObjectiveCoefM i vi = do
     moip <- gets toMOIPScheme
     liftIO $ MOIP.setObjectiveCoef moip i vi
+setMaximizeM :: (MOIP a, MonadIO m) => StateT a m ()
+setMaximizeM = do
+    moip <- gets toMOIPScheme
+    liftIO $ MOIP.setMaximize moip
+setMinimizeM :: (MOIP a, MonadIO m) => StateT a m ()
+setMinimizeM = do 
+    moip <- gets toMOIPScheme
+    liftIO $ MOIP.setMinimize moip
+
 
 omitConstraintOnObjM :: (MOIP a, MonadIO m) => Int -> StateT a m ()
 omitConstraintOnObjM i = do
