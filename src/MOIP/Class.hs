@@ -1,14 +1,18 @@
 
 module MOIP.Class
 
-(newIloObject, newIloObjectM, add, addM, remove, removeM
+(
+MOIP(..)
+,newIloObject, newIloObjectM, add, addM, remove, removeM
 ,setObjectiveCoef, setObjectiveCoefM
 ,omitConstraintOnObj, omitConstraintOnObjM, addConstraintOnObj, addConstraintOnObjM
 ,strictUpperBound, strictUpperBoundM, largeUpperBound, largeUpperBoundM
 ,objValue, objValueM
 ,solve, solveM, solveFromPoint, solveFromPointM
 ,exploreStrict, exploreStrictM, exploreLarge, exploreLargeM
+, MOIPScheme, mkMOIPScheme, _objvars, _domvars, _objfun 
 ,MOIP.OptValue
+
 )
 
 where
@@ -25,17 +29,20 @@ import Control.Monad.State
 
 class MOIP a where
     toMOIPScheme :: a -> MOIPScheme
+instance MOIP MOIPScheme where
+    toMOIPScheme = id
 
 
 {-| Pure version -}
 
 newIloObject :: (MOIP a, CPX.IloObject b) => a -> IO b
-newIloObject moip = liftIO $ MOIP.newIloObject (toMOIPScheme moip)
+newIloObject moip = liftIO $ MOIP.newIloObject $ toMOIPScheme moip
+add :: (MOIP a, CPX.IloAddable b) => a -> b -> IO ()
+add moip a = liftIO $ MOIP.moipAdd (toMOIPScheme  moip) a
+remove :: (MOIP a, CPX.IloAddable b) => a -> b -> IO ()
+remove moip a = liftIO $ MOIP.moipRemove (toMOIPScheme moip) a
 
-add :: (MOIP a, CPX.IloObject b, CPX.IloAddable b) => a -> b -> IO ()
-moip `add` a = toMOIPScheme moip `MOIP.moipAdd` a
-remove :: (MOIP a, CPX.IloObject b, CPX.IloAddable b) => a -> b -> IO ()
-moip `remove` a = toMOIPScheme moip `MOIP.moipRemove` a
+
 
     {-| Objective function -}
 setObjectiveCoef :: (MOIP a) => a -> Int -> Double -> IO ()
@@ -82,6 +89,18 @@ exploreLarge moip ub ptM = do
 
 
 {-| Monadic Version -}
+newIloObjectM :: (MOIP a, CPX.IloObject b, MonadIO m) => StateT a m b
+newIloObjectM = do
+    moip <- get
+    liftIO $ newIloObject moip
+addM :: (MOIP a, CPX.IloAddable b, MonadIO m) => b -> StateT a m ()
+addM a = do
+    moip <- get
+    liftIO $ moip `add` a
+removeM :: (MOIP a, CPX.IloAddable b, MonadIO m) => b -> StateT a m ()
+removeM a = do
+    moip <- get
+    liftIO $ moip `remove` a
 setObjectiveCoefM :: (MOIP a, MonadIO m) => Int -> Double -> StateT a m ()
 setObjectiveCoefM i vi = do
     moip <- gets toMOIPScheme
@@ -128,20 +147,5 @@ exploreLargeM ub ptM = do
     moip <- get
     liftIO $ exploreLarge moip ub ptM
 
-
-
-newIloObjectM :: (MOIP a, CPX.IloObject b, MonadIO m) => StateT a m b
-newIloObjectM = do
-    moip <- gets toMOIPScheme
-    liftIO $ MOIP.newIloObject moip
-
-addM :: (MOIP a, CPX.IloObject b, CPX.IloAddable b, MonadIO m) => b -> StateT a m ()
-addM a = do
-    moip <- gets toMOIPScheme
-    liftIO $ moip `MOIP.moipAdd` a
-removeM :: (MOIP a, CPX.IloObject b, CPX.IloAddable b, MonadIO m) => b -> StateT a m ()
-removeM a = do
-    moip <- gets toMOIPScheme
-    liftIO $ moip `MOIP.moipRemove` a
 
 

@@ -4,6 +4,7 @@ module Optimizer where
 import Optimizer.Types
 import Optimizer.Debug
 import Optimizer.Solvers
+import Optimizer
 import SearchRegion
 import MOIP
 

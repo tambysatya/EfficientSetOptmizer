@@ -3,6 +3,7 @@ module Optimizer.Types where
 
 import SearchRegion
 import MOIP
+import Optimizer.Models
 import IloCplex
 
 import qualified Data.Set as S
