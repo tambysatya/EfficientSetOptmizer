@@ -9,6 +9,9 @@ type Domain = ([[Double]], [Double], [[Double]], [Double])
 nbDomVars :: Domain -> Int
 nbDomVars ((f:_),_,_,_) = length f
 nbDomVars _ = error "invalid domain: no objective coefficients"
+nbObjVars (f,_,_,_) = length f
+nbDomCtrs (_,lb,_,_) = length lb
+
 
 readKS :: String -> IO Domain
 readKS str = do
