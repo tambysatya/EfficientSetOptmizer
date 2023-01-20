@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module SearchRegion.Internals where
 
+import Utils
 import SearchRegion.UB
 import SearchRegion.Class
 import SearchRegion.Archive
@@ -46,13 +47,7 @@ updateSR_noRR :: (MonadIO m) => GlobalBounds -> (Point,SubOpt) -> SubOpt -> SRUB
 updateSR_noRR gbnds pt (SubOpt estimation) = do
     sr <- use srUB 
     yar <- use yArchive
-    ret <- forM sr $ \u -> do
-                zones <- updateZoneJustReopt gbnds u pt
-                let newzones 
-                        | fst pt `domS` u = let children = newzones
-                                            in [ci | ci <- children, not $ isJust $ checkYMdl (ExploredUB ci) yar]
-                        | otherwise = []
-                pure newzones
+    ret <- forM sr $ \u -> updateZoneJust gbnds u pt
 
     let --result = filter f $ concat ret
         --f z = _szLB z < HyperOpt estimation
@@ -99,14 +94,23 @@ updateZoneJustWithRR gbnds zexp pdir hopt lb_l pt estimation@(SubOpt cur) ub = d
             -- pure $ catMaybes $ applyReductionRule zexp pdir lb_l estimation <$> newzones
             --catMaybes $ applyReductionRule zexp pdir lb_l estimation <$> updateZoneJustHOpt gbnds zexp hopt ub pt 
 
-{-| Before splitting a zone, computes a lowerbound using the point as a warmstart.
-    This approximates the lowerbound of the children -}
-updateZoneJust :: GlobalBounds -> UB -> (Point,SubOpt) -> [UB]
+updateZoneJust :: (MonadIO m) => GlobalBounds -> UB -> (Point,SubOpt) -> SRUBT m [UB]
 updateZoneJust gbnds ub (pt,ptval)
-    | pt `domS` ub = catMaybes [child gbnds pt ptval ub i| i <- ChildDir <$> [1..p]]
-    | pt `domL` ub = [updateDefiningPoints pt ptval ub]
-    | otherwise = [ub]
+    | pt `domS` ub = do
+        yar <- use yArchive 
+        let children = catMaybes [child gbnds pt ptval ub i| i <- ChildDir <$> [1..p]]
+            filterFun ci = case checkYMdl (ExploredUB ci) yar of
+                Nothing -> pure True
+                Just ymdl -> do
+                    logM $ "\t\t discarding " ++ show ci ++ " [YArchive: " ++ show ymdl ++ "]"
+                    pure False
+        filterM filterFun children
+    | pt `domL` ub = do
+        logM $ "\t\t Updating " ++ show ub
+        pure $ [updateDefiningPoints pt ptval ub]
+    | otherwise = pure $ [ub]
   where p = dimension ub
+
 updateZoneJustReopt :: (MonadIO m) => GlobalBounds -> UB -> (Point,SubOpt) -> SRUBT m [UB]
 updateZoneJustReopt gbnds ub (pt,ptval) 
         | pt `domS` ub = do 
