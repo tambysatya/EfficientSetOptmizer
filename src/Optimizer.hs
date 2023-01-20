@@ -3,6 +3,7 @@ module Optimizer where
 
 import Optimizer.Types
 import Optimizer.Debug
+import Optimizer.Solvers
 import SearchRegion
 import MOIP
 
@@ -29,18 +30,18 @@ optimize = do
         then pure ()
         else do
             stats.nbIt += 1
-            cutval <- use bestVal
+            estimation <- use bestVal
             let zexp = selectZone sr
                 (_,pdir) = _szMaxProj $ fromExplored zexp
                 (ProjDir l) = pdir
                 srsize = srSize sr
             --let (SRUB sr') = sr                    
             --logM $ "SR=" ++ show [(zi,_szMaxProj zi) | zi <- sr']
-            logM $ "exploring: " ++ show zexp ++  " " ++ show pdir ++ " " ++ show (_szLB $ fromExplored zexp) ++ " hv=" ++ show (fst $ _szMaxProj $ fromExplored zexp) ++ " size=" ++ show srsize  ++ " cutval=" ++ show cutval
+            logM $ "exploring: " ++ show zexp ++  " " ++ show pdir ++ " " ++ show (_szLB $ fromExplored zexp) ++ " hv=" ++ show (fst $ _szMaxProj $ fromExplored zexp) ++ " size=" ++ show srsize  ++ " estimation=" ++ show estimation
             stats.lmax %= max srsize
             stats.ltotal += srsize
             -- DEBUG
-            --zoneLBM <-  dbg_compute_zone_lb gbnds zexp cutval
+            --zoneLBM <-  dbg_compute_zone_lb gbnds zexp estimation
             --logM $ "\t\t[DEBUG] lower bound on zone " ++ show zexp ++ " is " ++ show zoneLBM
 
             lbM <- zoom optEffLB $ do
@@ -60,7 +61,7 @@ optimize = do
                                 Nothing -> pure Nothing
                                 Just pt -> do
                                     optval <- getObjValueM
-                                    if SubOpt optval >= cutval
+                                    if SubOpt optval >= estimation 
                                         then pure Nothing --  No point in the projection improves the estimation
                                         else pure $ Just (optval,pt)
                     addConstraintOnObjM l
@@ -71,48 +72,23 @@ optimize = do
                 Nothing -> do
                     logM $ "\t X [compute lb]"
                     stats.nbInfeasible += 1
-                    zoom searchRegion $ updateSR gbnds zexp pdir Nothing cutval
+                    zoom searchRegion $ updateSR gbnds zexp pdir Nothing estimation
                     optimize 
                 Just (lb,lbPt) -> do
                     logM $ "\t lbPt=" ++ show lbPt ++ " " ++ show lb
-                    weakND <- zoom exploreMdl $ do 
-
-                                setProj pdir
-                                setLocalUpperBoundM zexp
-                                setCutUB $ fromSubOpt cutval
-                                fromJust <$> solveFromPointM lbPt
+                    weakND <- fromJust <$> (exploreProjection zexp estimation $ Just lbPt)
                     logM $ "\t weakND=" ++ show weakND
-                    (yND,yNDval) <- zoom reoptMdl $ do
-                                reoptimizeFromM weakND
-                                ret <- fromJust <$> solveFromPointM weakND
-                                val <- getObjValueM
-                                pure (ret, SubOpt val)
+                    yND <- verifyDominance weakND
                     logM $ "\t yND=" ++ show yND
+                    (bestsol, bestval) <- effsetGetDominatingPoint yND
 
 
-                    bestSol <- zoom optEff $ fromJust <$> optEffExplore zexp pdir yND
-                    bestval <- SubOpt <$> zoom optEff getObjValueM
-                    logM $ "\t " ++ show bestSol ++ " val=" ++ show bestval ++ " [lb=" ++ show lb ++ "]"
+                    logM $ "\t " ++ show bestsol ++ " val=" ++ show bestval ++ " [lb=" ++ show lb ++ "]"
                     logM "\t [updateSR with yND]"
                     bestVal %= min bestval
                     curval <- use bestVal
-                    zoom searchRegion $ updateSR gbnds zexp pdir (Just (HyperOpt lb,yND,yNDval)) curval
+                    zoom searchRegion $ updateSR gbnds zexp pdir (Just (HyperOpt lb,bestsol,bestval)) curval
 
-                       -- We can also update from lbPT but we must check if it is non-dominated
-                       -- and update the estimation accordingly
-                    when (not $ yND `domL` lbPt) $ do
-                        logM "\t [updateSR with lbPT]"
-                        lbNDM <- zoom reoptMdl $ do
-                            error "to implement"
-                        bestSol <- zoom optEff $ fromJust <$> optEffExplore zexp pdir lbPt
-                        zoom searchRegion $ updateSR_noRR gbnds (lbPt,SubOpt lb) curval
-
-
-                    when (bestSol /= yND) $ do
-                        logM "\t [updateSR with bestSol]"
-                        zoom searchRegion $ updateSR gbnds zexp pdir (Just (HyperOpt lb,bestSol,bestval)) curval
-                        ndpts %= S.insert (_ptPerf bestSol)
-                    ndpts %= S.insert (_ptPerf yND)
                     
                     optimize
                     
