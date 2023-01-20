@@ -1,5 +1,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module MOIP.Scheme.Methods where
+module MOIP.Scheme.Methods
+(OptValue
+, setObjectiveCoef
+, largeUpperBound, strictUpperBound, omitConstraintOnObj, addConstraintOnObj
+, objValue, solve, solveFromPoint
+, newIloObject, moipAdd, moipRemove
+)
+
+where
 
 import SearchRegion.Class
 import MOIP.Scheme.Type
@@ -13,26 +21,25 @@ import qualified Data.Array as A
 
 newtype OptValue = OptValue Double
     deriving (Eq,Ord,Num)
-type Result = (Point, OptValue)
 
 
 {-| Objective function -}
-setObjectiveCoef :: Int -> Double -> MOIPScheme -> IO ()
-setObjectiveCoef i val moip = setLinearCoef fun (_objvars moip A.! i) val
+setObjectiveCoef :: MOIPScheme -> Int -> Double -> IO ()
+setObjectiveCoef moip i val = setLinearCoef fun (_objvars moip A.! i) val
     where fun = _objfun moip
 
 {-| Constraints -}
-largeUpperBound :: A.Array Int Double -> MOIPScheme -> IO ()
-largeUpperBound ub moip = forM_ (A.assocs ub) $ \(i,vi) -> setUB (_objctrs moip A.! i) vi
+largeUpperBound :: MOIPScheme -> A.Array Int Double ->  IO ()
+largeUpperBound moip ub = forM_ (A.assocs ub) $ \(i,vi) -> setUB (_objctrs moip A.! i) vi
 
-strictUpperBound :: A.Array Int Double -> MOIPScheme -> IO ()
-strictUpperBound ub moip = forM_ (A.assocs ub) $ \(i,vi) -> setUB (_objctrs moip A.! i) $ vi - 0.5
+strictUpperBound :: MOIPScheme -> A.Array Int Double -> IO ()
+strictUpperBound moip ub = forM_ (A.assocs ub) $ \(i,vi) -> setUB (_objctrs moip A.! i) $ vi - 0.5
 
-omitConstraintObObj :: Int -> MOIPScheme -> IO ()
-omitConstraintObObj i moip = _model moip `remove`( _objctrs moip A.! i)
+omitConstraintOnObj :: MOIPScheme -> Int -> IO ()
+omitConstraintOnObj moip i= _model moip `remove`( _objctrs moip A.! i)
 
-addConstraintOnObj :: Int -> MOIPScheme -> IO ()
-addConstraintOnObj i moip = _model moip `add`( _objctrs moip A.! i)
+addConstraintOnObj :: MOIPScheme -> Int -> IO ()
+addConstraintOnObj moip i = _model moip `add`( _objctrs moip A.! i)
 
 {-| Solve -}
 objValue :: MOIPScheme -> IO OptValue
@@ -74,6 +81,12 @@ addWarmStart moip pt = do
 {-| Wrapper - object creation -}
 newIloObject :: (IloObject a) => MOIPScheme -> IO a
 newIloObject moip = CPX.newIloObject (getEnv moip) 
+
+moipAdd :: (IloAddable a, IloObject a) => MOIPScheme -> a -> IO ()
+moipAdd moip a = _model moip `add` a
+
+moipRemove :: (IloAddable a, IloObject a) => MOIPScheme -> a -> IO ()
+moipRemove moip a = _model moip `remove` a
 
 
 -- utils

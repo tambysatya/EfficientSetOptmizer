@@ -1,8 +1,8 @@
 module MOIP.Scheme (
 
-module MOIP.Scheme.Type
-,module MOIP.Scheme.Methods
+ module MOIP.Scheme.Type
+,module MOIP.Scheme.Class
 ) where
 
 import MOIP.Scheme.Type
-import MOIP.Scheme.Methods
+import MOIP.Scheme.Class
