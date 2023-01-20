@@ -1,6 +1,8 @@
 {-# LANGUAGE TemplateHaskell, TupleSections #-}
 module Optimizer where
 
+import Optimizer.Types
+import Optimizer.Debug
 import SearchRegion
 import MOIP
 
@@ -14,37 +16,9 @@ import qualified Data.List as L
 import Data.Function
 import Data.Maybe
 
-import System.CPUTime
 import qualified Data.Set as S
 
 
-
-data Algorithm = Algorithm {
-                    _globalBounds :: GlobalBounds,
-                    _exploreMdl :: ExploreMdl,
-                    _reoptMdl :: ReoptMdl,
-                    _optEff :: OptEffCut,
-                    _optEffLB :: OptEff,
-
-                    _searchRegion :: SRUB,
-                    _xeArchive :: XeArchive,
-                    _yArchive :: YArchive,
-                    
-                    _ndpts :: S.Set Bound,
-                    _bestVal :: SubOpt,
-                    _stats :: Stats
-                 }
-data Stats = Stats {_lmax :: Int,
-                    _ltotal :: Int,
-                    _nbIt :: Int,
-                    _nbInfeasible :: Int
-                    }
-
-makeLenses ''Stats
-makeLenses ''Algorithm
-
-mkStats = Stats 0 0 0 0
-instance Show Stats where show (Stats lm la it inf) = show lm ++ ";" ++ show (fromIntegral la/fromIntegral it) ++ ";" ++ show it ++ ";" ++ show inf
 
 optimize :: StateT Algorithm IO ()
 optimize = do
@@ -65,6 +39,10 @@ optimize = do
             logM $ "exploring: " ++ show zexp ++  " " ++ show pdir ++ " " ++ show (_szLB $ fromExplored zexp) ++ " hv=" ++ show (fst $ _szMaxProj $ fromExplored zexp) ++ " size=" ++ show srsize  ++ " cutval=" ++ show cutval
             stats.lmax %= max srsize
             stats.ltotal += srsize
+            -- DEBUG
+            --zoneLBM <-  dbg_compute_zone_lb gbnds zexp cutval
+            --logM $ "\t\t[DEBUG] lower bound on zone " ++ show zexp ++ " is " ++ show zoneLBM
+
             lbM <- zoom optEffLB $ do
                     setLocalUpperBoundM zexp
                     omitConstraintOnObjM l
@@ -87,6 +65,7 @@ optimize = do
                                         else pure $ Just (optval,pt)
                     addConstraintOnObjM l
                     pure retM
+            searchRegion.xeArchive %= insertXeMdl zexp (fmap HyperOpt $ fst <$> lbM) 
             case lbM of
                 {- No feasible point in the projection -}
                 Nothing -> do
@@ -121,11 +100,14 @@ optimize = do
 
                        -- We can also update from lbPT but we must check if it is non-dominated
                        -- and update the estimation accordingly
-                    {-
                     when (not $ yND `domL` lbPt) $ do
                         logM "\t [updateSR with lbPT]"
+                        lbNDM <- zoom reoptMdl $ do
+                            error "to implement"
+                        bestSol <- zoom optEff $ fromJust <$> optEffExplore zexp pdir lbPt
                         zoom searchRegion $ updateSR_noRR gbnds (lbPt,SubOpt lb) curval
-                    -}
+
+
                     when (bestSol /= yND) $ do
                         logM "\t [updateSR with bestSol]"
                         zoom searchRegion $ updateSR gbnds zexp pdir (Just (HyperOpt lb,bestSol,bestval)) curval
@@ -135,47 +117,7 @@ optimize = do
                     optimize
                     
                     
-logM :: (MonadIO m) => String -> StateT a m ()
-logM text = liftIO $ putStrLn text
-
-
-
-mkAlgorithm :: IloEnv -> Domain -> FunCoefs -> IO Algorithm
-mkAlgorithm env dom funcoefs = do
-       (globalbounds,yIPts) <- computeGlobalBounds 
-       let (AntiIdeal yA, Ideal yI) = globalbounds
-       putStrLn $ "bounds of the domain:" ++ show (yA, yI)
-       Algorithm <$> pure globalbounds
-                 <*> mkExploreMdl env dom funcoefs
-                 -- <*> mkReoptMdl' yIPts env dom funcoefs
-                 <*> mkReoptMdl env dom
-                 <*> mkOptEffCut env dom funcoefs
-                 <*> mkOptEff env dom funcoefs
-                 <*> pure (mkSRUB globalbounds) --mkSRUB env dom funcoefs globalbounds
-                 <*> pure (XeArchive [])
-                 <*> pure (YArchive [])
-                 <*> pure S.empty
-                 -- <*> pure (SubOpt 9218)
-                 <*> pure (SubOpt maxval)
-                 <*> pure mkStats
-    where computeGlobalBounds = do
-                moipmin <- mkMOIPScheme env dom
-                moipmax <- mkMOIPScheme env dom
-                _setMaximize moipmax
-                bnds <- forM [1..nbCrits moipmin] $ \i -> do
-                                when (i /= 1) $ do 
-                                    _setObjectiveCoef moipmin (i-1) 0
-                                    _setObjectiveCoef moipmax (i-1) 0
-                                _setObjectiveCoef moipmax i 1
-                                _setObjectiveCoef moipmin i 1
-                                (optmax, optmin) <- (,) <$> _solve moipmax <*> _solve moipmin
-                                when (isNothing optmax || isNothing optmin) $ error "Unable to compute the bounds of the domain: the domain is empty"
-                                print (optmax,optmin)
-                                pure (_ptPerf (fromJust optmax) A.! i, _ptPerf (fromJust optmin) A.! i, fromJust optmin)
-                let (yA,yI,yIPts) = unzip3 bnds
-                pure $ ((AntiIdeal $ A.listArray (1,nbCrits moipmin) yA,
-                        Ideal $ A.listArray (1,nbCrits moipmin) yI), yIPts)
-                            
+                           
 
 runAlgorithm' :: IloEnv -> Domain -> FunCoefs -> IO (SubOpt, Algorithm)
 runAlgorithm' env dom fun = do
@@ -194,8 +136,3 @@ runAlgorithm name log env dom fun = do
 
 
 
-time :: (MonadIO m) => m a -> m (a, Double)
-time act = do cpu <- liftIO getCPUTime
-              r <- act
-              cpu' <- liftIO getCPUTime
-              pure (r,(fromIntegral $ cpu' - cpu) / (fromIntegral $ 10^12))

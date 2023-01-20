@@ -18,13 +18,13 @@ import Control.Monad.State
 
 
 {-| TODO use a min heap -}
-data SRUB = SRUB {_srUB :: ![UB] , _yArchive :: YArchive}
+data SRUB = SRUB {_srUB :: ![UB] , _yArchive :: YArchive, _xeArchive :: XeArchive}
 makeLenses ''SRUB
-instance Show SRUB where show (SRUB sr _) = show $ fmap _szU sr
+instance Show SRUB where show (SRUB sr _ _) = show $ fmap _szU sr
 type SRUBT = StateT SRUB
 
 mkSRUB :: GlobalBounds -> SRUB
-mkSRUB gbnds = SRUB [mkZone gbnds] (YArchive [])
+mkSRUB gbnds = SRUB [mkZone gbnds] (YArchive []) (XeArchive [])
 
 updateSR :: (MonadIO m) => GlobalBounds -> ExploredUB -> ProjDir -> Maybe (HyperOpt, Point, SubOpt) -> SubOpt -> SRUBT m ()
 updateSR gbnds zexp pdir Nothing _ = do
@@ -45,7 +45,15 @@ updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval)) estimation@(SubOpt 
 updateSR_noRR :: (MonadIO m) => GlobalBounds -> (Point,SubOpt) -> SubOpt -> SRUBT m ()
 updateSR_noRR gbnds pt (SubOpt estimation) = do
     sr <- use srUB 
-    ret <- forM sr $ \u -> updateZoneJustReopt gbnds u pt
+    yar <- use yArchive
+    ret <- forM sr $ \u -> do
+                zones <- updateZoneJustReopt gbnds u pt
+                let newzones 
+                        | fst pt `domS` u = let children = newzones
+                                            in [ci | ci <- children, not $ isJust $ checkYMdl (ExploredUB ci) yar]
+                        | otherwise = []
+                pure newzones
+
     let --result = filter f $ concat ret
         --f z = _szLB z < HyperOpt estimation
         fun z 
@@ -72,12 +80,20 @@ updateZoneJustWithRR gbnds zexp pdir hopt lb_l pt estimation@(SubOpt cur) ub = d
             newzones <- updateZoneJustReopt gbnds ub pt
             ret <- forM newzones $ applyReductionRule zexp pdir hopt lb_l estimation
             yar <- use yArchive
+            xar <- use xeArchive
     
             newzones' <- forM (catMaybes ret) $ \zi -> let yreqM = checkYMdl (ExploredUB zi) yar
                                                        in case yreqM of
-                                                            Nothing -> pure (Just zi)
+                                                            Nothing -> do 
+                                                                let xreqM = checkXeMdl zi estimation xar
+                                                                case xreqM of
+                                                                    Nothing -> pure $ Just zi
+                                                                    Just mdl -> do 
+                                                                        liftIO $ putStrLn $ "\t\t discarding " ++ show zi ++ " [Xarchive: " ++ show mdl ++ "]"
+                                                                        pure Nothing
+                                                                    
                                                             Just mdl -> do
-                                                                liftIO $ putStrLn $ "\t\t discarding " ++ show zi ++ " [archive: " ++ show mdl ++ "]"
+                                                                liftIO $ putStrLn $ "\t\t discarding " ++ show zi ++ " [Yarchive: " ++ show mdl ++ "]"
                                                                 pure Nothing
             pure $ catMaybes newzones'
             -- pure $ catMaybes $ applyReductionRule zexp pdir lb_l estimation <$> newzones
@@ -94,10 +110,10 @@ updateZoneJust gbnds ub (pt,ptval)
 updateZoneJustReopt :: (MonadIO m) => GlobalBounds -> UB -> (Point,SubOpt) -> SRUBT m [UB]
 updateZoneJustReopt gbnds ub (pt,ptval) 
         | pt `domS` ub = do 
-                liftIO $ putStrLn $ "\t\t Splitting " ++ show ub  ++ " lb=" ++ show (_szLB ub)
+                liftIO $ putStrLn $ "\t\t Splitting " ++ show ub  ++ " " ++ show (_szLB ub)
                 pure $ catMaybes [child gbnds pt ptval ub i | i <- ChildDir <$> [1..p]]
         | pt `domL` ub = do -- pure [updateDefiningPoints pt ub]
-                liftIO $ putStrLn $ "\t\t Updating " ++ show ub ++ " lb=" ++ show (_szLB ub)
+                liftIO $ putStrLn $ "\t\t Updating " ++ show ub ++ " " ++ show (_szLB ub)
                 pure [updateDefiningPoints pt ptval ub]
 
         | otherwise = pure [ub]
@@ -137,14 +153,14 @@ applyReductionRule (ExploredUB zexp) pdir (HyperOpt hopt) lb_l (SubOpt sopt) ub
     
  
 deleteZone :: UB -> SRUB -> SRUB
-deleteZone ub (SRUB sr ar) = SRUB (L.deleteBy ((==) `on` toBound) ub sr) ar
+deleteZone ub (SRUB sr yar xar) = SRUB (L.deleteBy ((==) `on` toBound) ub sr) yar xar
 
 
 selectZone :: SRUB -> ExploredUB
 --selectZone (SRUB sr) = ExploredUB $ L.minimumBy (compare `on` (fst . view szMaxProj)) sr -- maximumBy since we negates the values
 --selectZone (SRUB sr) = ExploredUB $ L.minimumBy (compare `on` (fst . view szMaxProj)) sr -- minimumBy since we negates the values
 -- selectZone (SRUB sr _) = ExploredUB $ L.minimumBy (compare `on` view szLB) sr -- selects the most promising zone (to find the optimum faster)
-selectZone (SRUB sr _) = ExploredUB $ L.minimumBy f sr -- selects the most promising zone (to find the optimum faster)
+selectZone (SRUB sr _ _) = ExploredUB $ L.minimumBy f sr -- selects the most promising zone (to find the optimum faster)
     where f z1 z2
                 | nbUndef1 /= nbUndef2 = compare nbUndef1 nbUndef2
                 | hv1 /= hv2 = compare hv1 hv2
@@ -158,9 +174,9 @@ selectZone (SRUB sr _) = ExploredUB $ L.minimumBy f sr -- selects the most promi
 
 
 emptySR :: SRUB -> Bool
-emptySR (SRUB sr _) = null sr
+emptySR (SRUB sr _ _) = null sr
 
 srSize :: SRUB -> Int
-srSize (SRUB sr _) = length sr
+srSize (SRUB sr _ _) = length sr
 
 
