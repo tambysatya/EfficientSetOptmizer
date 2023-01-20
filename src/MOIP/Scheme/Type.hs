@@ -16,7 +16,8 @@ type IloNumVarArray = A.Array Int IloNumVar
 type BoolVarArray = A.Array Int IloBoolVar
 
 
-data MOIPScheme = MOIPScheme {_model :: IloModel
+data MOIPScheme = MOIPScheme { getEnv :: IloEnv
+                              ,_model :: IloModel
                               ,_cplex :: IloCplex
                               ,_objfun :: IloObjective
 
@@ -62,7 +63,7 @@ mkMOIPScheme env dom@(objcoefs, lbcoefs, ctrcoefs, ubcoefs) = do
 --        mipstart <- mkEmptyMIPStart env (A.elems domvars)
         ofun <- newIloObject env
         setMinimize ofun
-        pure $ MOIPScheme mdl cpx ofun (A.listArray (1,p) octrs) (A.listArray (1,m) dctrs) ovars dvars
+        pure $ MOIPScheme env mdl cpx ofun (A.listArray (1,p) octrs) (A.listArray (1,m) dctrs) ovars dvars
 
     where (m,n,p) = (nbDomCtrs dom, nbDomVars dom, nbObjVars dom)
 
