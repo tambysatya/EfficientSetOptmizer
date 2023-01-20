@@ -10,7 +10,7 @@ module MOIP.Methods
 where
 
 import SearchRegion.Class
-import MOIP.Scheme.Type
+import MOIP.Type
 import IloCplex hiding (solve, newIloObject)
 import qualified IloCplex as CPX (solve,newIloObject)
 

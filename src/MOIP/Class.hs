@@ -14,10 +14,10 @@ module MOIP.Class
 where
 
 
-import MOIP.Scheme.Type
+import MOIP.Type
+import qualified MOIP.Methods as MOIP
 import SearchRegion.Class
 
-import qualified MOIP.Scheme.Methods as MOIP
 import qualified IloCplex as CPX
 
 import qualified Data.Array as A
