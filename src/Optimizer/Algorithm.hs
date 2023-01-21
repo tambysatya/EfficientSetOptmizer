@@ -68,19 +68,29 @@ optimize = do
 
                     logM $ "\t " ++ show bestsol ++ " val=" ++ show bestval ++ " [lb=" ++ show lb ++ "]"
                     bestVal %= min bestval
-                    curval <- use bestVal
 
-                    when (not $ yND `domL` lbPt) $ do
+                    {-
+                    when (yND /= lbPt) $ do
+                    -- when (not $ yND `domL` lbPt) $ do
                         logM "\t [updateSR with lbPtND]"
                         opt <- verifyDominance lbPt
+                        logM $ "\t\t ND=" ++ show opt
                         (optsol,optval) <- effsetGetDominatingPoint opt
-                        zoom searchRegion $ updateSR_noRR gbnds (optsol,optval) curval
+                        logM $ "\t\t opt" ++ show optsol++ " " ++ show optval
+                        bestVal %= min optval
+                        curval <- use bestVal
+                        when (optsol /= lbPt) $ 
+                            zoom searchRegion $ updateSR_noRR gbnds (optsol,optval) curval
+                    -}
                     logM "\t [updateSR with yND]"
+                    
+
+                    curval <- use bestVal
                     --searchRegion.xeArchive %= insertXeMdl zexp  (Just lb)
                     
                     -- Search region is updated with the lowerbound obtained from the EXPLORATION (and not the non-dominated point) since it does not
                     -- necessarily improves the estimation
-                    -- The archive is updated acordingly
+                    -- The archive is updated accordingly
                     zoom searchRegion $ updateSR gbnds zexp pdir (Just (lb,bestsol,bestval,weakNDl)) curval
                     
                     optimize

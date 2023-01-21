@@ -54,8 +54,8 @@ mkAlgorithm env dom funcoefs = do
        putStrLn $ "bounds of the domain:" ++ show (yA, yI)
        Algorithm <$> pure globalbounds
                  <*> mkExploreMdl env dom funcoefs
-                 -- <*> mkReoptMdl' yIPts env dom funcoefs
-                 <*> mkReoptMdl env dom
+                 <*> mkReoptMdl' env dom funcoefs yIPts
+                 -- <*> mkReoptMdl env dom
                  <*> mkLBMdl env dom funcoefs
                  <*> pure (mkSRUB globalbounds) --mkSRUB env dom funcoefs globalbounds
                  <*> pure S.empty

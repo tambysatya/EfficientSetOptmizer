@@ -1,7 +1,9 @@
 module Optimizer.Models
 
 (FunCoefs(..)
-,mkExploreMdl, mkReoptMdl, mkLBMdl
+,mkExploreMdl
+,mkReoptMdl, mkReoptMdl'
+,mkLBMdl
 ,ExploreMdl, ReoptMdl, LBMdl
 ,exploreSetCutUB
 )
@@ -46,6 +48,15 @@ mkReoptMdl env dom = do
     pure $ ReoptMdl moip
  where p = nbObjVars dom
 
+mkReoptMdl' :: CPX.IloEnv -> Domain -> FunCoefs -> [Point] -> IO ReoptMdl
+mkReoptMdl' env dom fcoefs yIPts = do
+    moip <- mkMOIPScheme env dom
+    let vals = evaluatePoint fcoefs <$> yIPts
+        total = sum vals
+    forM (zip [1..p] vals) $ \(i,vi) -> setObjectiveCoef moip i (vi/total)
+    pure $ ReoptMdl moip
+ where p = nbObjVars dom
+
 mkLBMdl :: CPX.IloEnv -> Domain -> FunCoefs -> IO LBMdl
 mkLBMdl env dom (FunCoefs fcoefs) = do
     moip <- mkMOIPScheme env dom
@@ -57,3 +68,7 @@ exploreSetCutUB val = do
     (ExploreMdl _ cut) <- get
     liftIO $ CPX.setUB cut val
     
+
+
+evaluatePoint :: FunCoefs -> Point -> Double
+evaluatePoint (FunCoefs fcoefs) pt = sum $ [vi*(_ptSol pt A.! i) | (i,vi) <- fcoefs]
