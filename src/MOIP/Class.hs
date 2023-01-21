@@ -2,7 +2,7 @@
 module MOIP.Class
 
 (
-MOIP(..)
+MOIP(..), deleteMOIP, exportModelM
 ,newIloObject, newIloObjectM, add, addM, remove, removeM
 ,setObjectiveCoef, setObjectiveCoefM, setMinimize, setMinimizeM, setMaximize, setMaximizeM
 ,omitConstraintOnObj, omitConstraintOnObjM, addConstraintOnObj, addConstraintOnObjM
@@ -11,7 +11,7 @@ MOIP(..)
 ,solve, solveM, solveFromPoint, solveFromPointM
 ,exploreStrict, exploreStrictM, exploreLarge, exploreLargeM
 , MOIPScheme, mkMOIPScheme, _objvars, _domvars, _objfun 
-,MOIP.OptValue
+,MOIP.OptValue(..)
 
 )
 
@@ -34,6 +34,12 @@ instance MOIP MOIPScheme where
 
 
 {-| Pure version -}
+
+deleteMOIP :: (MOIP a) => a -> IO ()
+deleteMOIP moip = deleteMOIPScheme $ toMOIPScheme moip
+
+exportModel :: MOIP a => a -> String -> IO ()
+exportModel moip str = MOIP.exportModel (toMOIPScheme moip) str
 
 newIloObject :: (MOIP a, CPX.IloObject b) => a -> IO b
 newIloObject moip = liftIO $ MOIP.newIloObject $ toMOIPScheme moip
@@ -94,6 +100,10 @@ exploreLarge moip ub ptM = do
 
 
 {-| Monadic Version -}
+exportModelM :: (MOIP a, MonadIO m) => String -> StateT a m ()
+exportModelM str = do
+    moip <- get
+    liftIO $ moip `exportModel` str
 newIloObjectM :: (MOIP a, CPX.IloObject b, MonadIO m) => StateT a m b
 newIloObjectM = do
     moip <- get

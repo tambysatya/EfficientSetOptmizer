@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module MOIP.Methods
-(OptValue
+(OptValue(..)
+, exportModel
 , setObjectiveCoef, setMinimize, setMaximize
 , largeUpperBound, strictUpperBound, omitConstraintOnObj, addConstraintOnObj
 , objValue, solve, solveFromPoint
@@ -11,8 +12,8 @@ where
 
 import SearchRegion.Class
 import MOIP.Type
-import IloCplex hiding (solve, newIloObject, setMinimize, setMaximize)
-import qualified IloCplex as CPX (solve,newIloObject, setMinimize, setMaximize)
+import IloCplex hiding (solve, newIloObject, setMinimize, setMaximize, exportModel)
+import qualified IloCplex as CPX (solve,newIloObject, setMinimize, setMaximize, exportModel)
 
 import Control.Monad
 import Control.Lens
@@ -23,6 +24,8 @@ newtype OptValue = OptValue Double
     deriving (Eq,Ord,Num)
 
 
+exportModel :: MOIPScheme -> String -> IO ()
+exportModel moip str = _cplex moip `CPX.exportModel` str
 {-| Objective function -}
 setObjectiveCoef :: MOIPScheme -> Int -> Double -> IO ()
 setObjectiveCoef moip i val = setLinearCoef fun (_objvars moip A.! i) val
@@ -49,7 +52,7 @@ addConstraintOnObj moip i = _model moip `add`( _objctrs moip A.! i)
 
 {-| Solve -}
 objValue :: MOIPScheme -> IO OptValue
-objValue moip = OptValue <$> (getObjValue $ _cplex moip)
+objValue moip = OptValue .fromInteger.round<$> (getObjValue $ _cplex moip)
 
 solve :: MOIPScheme -> IO (Maybe Point)
 solve moip = do 
@@ -97,4 +100,4 @@ moipRemove moip a = _model moip `remove` a
 
 -- utils
 mkVect :: (IloVar a) => MOIPScheme -> A.Array Int a -> IO (A.Array Int Double)
-mkVect moip vars = A.listArray (1,length vars) <$> forM (A.elems vars) (_cplex moip `getValue`)
+mkVect moip vars = A.listArray (1,length vars) . fmap (fromInteger. round) <$> forM (A.elems vars) (_cplex moip `getValue`)

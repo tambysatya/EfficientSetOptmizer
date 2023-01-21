@@ -1,5 +1,11 @@
 module Optimizer.Models
 
+(FunCoefs(..)
+,mkExploreMdl, mkReoptMdl, mkLBMdl
+,ExploreMdl, ReoptMdl, LBMdl
+,exploreSetCutUB
+)
+
 
 where
 
@@ -10,13 +16,14 @@ import qualified IloCplex as CPX
 
 import qualified Data.Array as A
 import Control.Monad
+import Control.Monad.State
 
 
 newtype FunCoefs = FunCoefs [(Int,Double)]
 
-data ExploreMdl = ExploreMdl MOIPScheme CPX.IloRange
-data ReoptMdl = ReoptMdl MOIPScheme
-data LBMdl = LBMdl MOIPScheme
+data ExploreMdl = ExploreMdl !MOIPScheme !CPX.IloRange
+data ReoptMdl = ReoptMdl !MOIPScheme
+data LBMdl = LBMdl !MOIPScheme
 
 instance MOIP ExploreMdl where toMOIPScheme (ExploreMdl mdl _) = mdl
 instance MOIP ReoptMdl where toMOIPScheme (ReoptMdl mdl) = mdl
@@ -44,3 +51,9 @@ mkLBMdl env dom (FunCoefs fcoefs) = do
     moip <- mkMOIPScheme env dom
     forM fcoefs $ \(i,vi) -> CPX.setLinearCoef (_objfun moip) (_domvars moip A.! i) vi
     pure $ LBMdl moip
+
+exploreSetCutUB :: (MonadIO m) => Double -> StateT ExploreMdl m ()
+exploreSetCutUB val = do
+    (ExploreMdl _ cut) <- get
+    liftIO $ CPX.setUB cut val
+    

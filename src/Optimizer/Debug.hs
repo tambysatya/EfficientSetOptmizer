@@ -21,9 +21,9 @@ time act = do cpu <- liftIO getCPUTime
 
 
 {- DEBUG -}
-
+{-
 dbg_compute_zone_lb :: (MonadIO m) => GlobalBounds -> ExploredUB -> SubOpt -> StateT Algorithm m (Maybe (HyperOpt,Point))
-dbg_compute_zone_lb gbnds zexp cutval = zoom optEffLB $ do
+dbg_compute_zone_lb gbnds zexp cutval = zoom optEff $ do
                             setLocalUpperBoundM zexp
                             let (AntiIdeal yA) = fst gbnds
                                 (ProjDir l) = snd $ _szMaxProj $ fromExplored zexp
@@ -45,3 +45,4 @@ dbg_compute_zone_lb gbnds zexp cutval = zoom optEffLB $ do
                                                 else pure $ Just (HyperOpt optval,pt)
                             pure retM
 
+-}

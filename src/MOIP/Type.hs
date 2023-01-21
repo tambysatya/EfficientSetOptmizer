@@ -16,18 +16,25 @@ type IloNumVarArray = A.Array Int IloNumVar
 type BoolVarArray = A.Array Int IloBoolVar
 
 
-data MOIPScheme = MOIPScheme { getEnv :: IloEnv
-                              ,_model :: IloModel
-                              ,_cplex :: IloCplex
-                              ,_objfun :: IloObjective
+data MOIPScheme = MOIPScheme { getEnv :: !IloEnv
+                              ,_model :: !IloModel
+                              ,_cplex :: !IloCplex
+                              ,_objfun :: !IloObjective
 
-                              ,_objctrs :: IloRangeArray
-                              ,_domctrs :: IloRangeArray
+                              ,_objctrs :: !IloRangeArray
+                              ,_domctrs :: !IloRangeArray
 
-                              ,_objvars :: IloNumVarArray
-                              ,_domvars :: BoolVarArray}
+                              ,_objvars :: !IloNumVarArray
+                              ,_domvars :: !BoolVarArray}
 makeLenses ''MOIPScheme
 
+deleteMOIPScheme :: MOIPScheme -> IO ()
+deleteMOIPScheme (MOIPScheme env mdl cpx ofun octrs dctrs ovars dvars) = do
+            forM_ (A.elems ovars) $ \oi -> setLinearCoef ofun oi 1
+            forM_ (A.elems dvars) $ \di -> setLinearCoef ofun di 1
+            forM_ (A.elems octrs) $ \ci -> forM (A.elems dvars) $ \di -> setLinearCoef ci di 1
+            forM_ (A.elems dctrs) $ \ci -> forM (A.elems dvars) $ \di -> setLinearCoef ci di 1
+            
 
 {-| The objective function is NOT ASSIGNED -}
 mkMOIPScheme :: IloEnv -> Domain -> IO MOIPScheme
@@ -63,6 +70,7 @@ mkMOIPScheme env dom@(objcoefs, lbcoefs, ctrcoefs, ubcoefs) = do
 --        mipstart <- mkEmptyMIPStart env (A.elems domvars)
         ofun <- newIloObject env
         setMinimize ofun
+        mdl `add` ofun
         pure $ MOIPScheme env mdl cpx ofun (A.listArray (1,p) octrs) (A.listArray (1,m) dctrs) ovars dvars
 
     where (m,n,p) = (nbDomCtrs dom, nbDomVars dom, nbObjVars dom)
