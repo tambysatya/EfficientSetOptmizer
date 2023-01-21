@@ -22,8 +22,12 @@ extern "C"{
 //        ret->setParam(IloCplex::EpGap, 10^(-9));	//relative MIP gap tolerance
 //        ret->setParam(IloCplex::EpGap, 0.0);	//relative MIP gap tolerance
 //        ret->setParam(IloCplex::ItLim, 1000000000);	//absolute MIP gap iteration limit
-        ret->setParam(IloCplex::EpAGap,0);
-        ret->setParam(IloCplex::EpGap,0);
+/* TODO ---------------- */
+// Set EPSGap as Boland
+        //ret->setParam(IloCplex::EpAGap,0);
+        //ret->setParam(IloCplex::EpGap,0);
+        ret->setParam(IloCplex::EpGap,1.0e-6);
+//------------------------
         ret->setParam(IloCplex::MIPDisplay, 0);	//Dislay option
         ret->setParam(IloCplex::AdvInd, 1);
 

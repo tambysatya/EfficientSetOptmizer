@@ -77,6 +77,10 @@ optimize = do
                         zoom searchRegion $ updateSR_noRR gbnds (optsol,optval) curval
                     logM "\t [updateSR with yND]"
                     --searchRegion.xeArchive %= insertXeMdl zexp  (Just lb)
+                    
+                    -- Search region is updated with the lowerbound obtained from the EXPLORATION (and not the non-dominated point) since it does not
+                    -- necessarily improves the estimation
+                    -- The archive is updated acordingly
                     zoom searchRegion $ updateSR gbnds zexp pdir (Just (lb,bestsol,bestval,weakNDl)) curval
                     
                     optimize

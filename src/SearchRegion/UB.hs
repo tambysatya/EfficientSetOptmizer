@@ -100,7 +100,8 @@ computeMaxProj (yA,(Ideal yI)) ub = L.minimumBy (compare `on` fst) [(projVal yA 
 projVal yA yI ub (ProjDir i) = --negate $ sum $ logBase 2 <$> zipWith (-) (A.elems $ proj i yA) (A.elems $ proj i ub)
         (negate $ p-length definedComp,
        --  negate $ sum $ [logBase 2 $ (toBound yA A.! j) - (toBound ub A.! j)  | j <- definedComp, j /= i]) -- FAUX
-         negate $ sum $ [logBase 2 $ (toBound ub A.! j) - (toBound yI A.! j)  | j <- definedComp, j /= i]) 
+         -- negate $ sum $ [logBase 2 $ (toBound ub A.! j) - (toBound yI A.! j)  | j <- definedComp, j /= i])  -- RE FAUX
+         negate $ sum $ [logBase 2 $ (toBound ub A.! j) - (toBound yI A.! j)  | j <- [1..p], j /= i]) 
     where definedComp = [j | j <- [1..p], toBound ub A.! j < toBound yA A.! j]
           p = dimension ub
 

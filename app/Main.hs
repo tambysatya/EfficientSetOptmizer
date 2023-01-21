@@ -20,12 +20,13 @@ mainKS =
         let coefs = foldr1 (zipWith (+)) objs
             funcoefs = FunCoefs $ zip [1..] $ fmap negate coefs
         --val <- runAlgorithm "nbdef-subopt-childhv-arfix" "kp.log" env dom funcoefs
-        val <- runAlgorithm "refactor-[update+archive weakNDL]-[reopt from lb]" "trash.log" env dom funcoefs
+        val <- runAlgorithm "EPSGAP+fixProjVal-refactor-[update+archive weakNDL]-[reopt from lb]" "trash.log" env dom funcoefs
         --val <- runAlgorithm "weightedreopt-nbdef-subopt-childhv-arfix" "kp.log" env dom funcoefs
         --val <- runAlgorithm "cut-prdir=cdir-nolb" "kp.log" env dom funcoefs
         print val
          
   where  instances =  [(3,100), (4,100)]
+        --instances =  [(4,100)]
         --instances =  [(4,100), (5,100), (3,100)]
         --instances = [(5,100), (4,100),(3,100)] --[(3,100),(4,100)]
 
