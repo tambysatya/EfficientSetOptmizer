@@ -54,12 +54,12 @@ optimize = do
                 then do
                     logM $ "\t X [compute lb]"
                     stats.nbInfeasible += 1
-                    searchRegion.xeArchive %= insertXeMdl zexp  Nothing
+                    -- searchRegion.xeArchive %= insertXeMdl zexp  Nothing
                     zoom searchRegion $ updateSR gbnds zexp pdir Nothing estimation
                     optimize 
                 else do
                     logM $ "\t lbPt=" ++ show lbPt ++ " " ++ show lb
-                    weakND <- fromJust <$> (exploreProjection zexp estimation $ Just lbPt)
+                    (weakND, OptValue weakNDl) <- fromJust <$> (exploreProjection zexp estimation $ Just lbPt)
                     logM $ "\t weakND=" ++ show weakND
                     yND <- verifyDominance weakND
                     logM $ "\t yND=" ++ show yND
@@ -67,12 +67,17 @@ optimize = do
 
 
                     logM $ "\t " ++ show bestsol ++ " val=" ++ show bestval ++ " [lb=" ++ show lb ++ "]"
-                    logM "\t [updateSR with yND]"
                     bestVal %= min bestval
                     curval <- use bestVal
-                    searchRegion.xeArchive %= insertXeMdl zexp  (Just lb)
-                    zoom searchRegion $ updateSR gbnds zexp pdir (Just (lb,bestsol,bestval)) curval
 
+                    when (not $ yND `domL` lbPt) $ do
+                        logM "\t [updateSR with lbPtND]"
+                        opt <- verifyDominance lbPt
+                        (optsol,optval) <- effsetGetDominatingPoint opt
+                        zoom searchRegion $ updateSR_noRR gbnds (optsol,optval) curval
+                    logM "\t [updateSR with yND]"
+                    --searchRegion.xeArchive %= insertXeMdl zexp  (Just lb)
+                    zoom searchRegion $ updateSR gbnds zexp pdir (Just (lb,bestsol,bestval,weakNDl)) curval
                     
                     optimize
                     
@@ -86,9 +91,9 @@ runAlgorithm' env dom fun = do
     --touchMOIP (_exploreMdl final)
     --touchMOIP (_reoptMdl final)
     --touchMOIP (_optEff final)
-    deleteMOIP (_exploreMdl algo)
-    deleteMOIP (_reoptMdl algo)
-    deleteMOIP (_optEff algo)
+    --deleteMOIP (_exploreMdl algo)
+    --deleteMOIP (_reoptMdl algo)
+    --deleteMOIP (_optEff algo)
     pure (_bestVal final, final)
 
 runAlgorithm name log env dom fun = do

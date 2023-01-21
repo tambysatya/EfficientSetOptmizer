@@ -14,7 +14,7 @@ import qualified Data.Array as A
 
 
 data YMdl = YMdl { _ymdlZone :: !ExploredUB,
-                   _ymdlOpt :: !(Maybe Point)}
+                   _ymdlOpt :: !(Maybe Double)}
 
 instance Show YMdl where
     show (YMdl z opt) = "optYND z=" ++ show (A.elems $ toBound $ fromExplored z) ++ " opt_" ++ show optproj ++ "=" ++ show opt 
@@ -22,7 +22,7 @@ instance Show YMdl where
 newtype YArchive = YArchive [YMdl] --TODO
 
 
-mkYMdl :: ExploredUB -> Maybe Point -> YMdl
+mkYMdl :: ExploredUB -> Maybe Double -> YMdl
 mkYMdl zexp@(ExploredUB z) ptM = YMdl zexp ptM
       where (ProjDir l) = snd $ _szMaxProj z
 
@@ -42,11 +42,11 @@ _ymdlProj = snd . _szMaxProj . fromExplored . _ymdlZone
 yKnownBy :: ExploredUB -> YMdl -> Bool
 yKnownBy zexp archivemdl = --tpdir == apdir
                         proj apdir zexp `domL` proj apdir aub
-                        && (case ptM of 
+                        && (case optM of 
                                 Nothing -> True
-                                Just pt -> (toBound zexp A.! l) <= (_ptPerf pt A.! l))
+                                Just opt -> (toBound zexp A.! l) <= opt)
     where 
-          (YMdl aub ptM) = archivemdl
+          (YMdl aub optM) = archivemdl
           apdir@(ProjDir l) = _ymdlProj archivemdl
 
 

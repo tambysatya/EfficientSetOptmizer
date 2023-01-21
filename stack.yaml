@@ -41,7 +41,7 @@ packages:
 #
 # extra-deps: []
 extra-deps:
-- ../TamVan19
+#- ../TamVan19
 #- ../NadirSolver
 - lens-4.19.2@sha256:d4d704141d7c322bbfb746157b0709f3b966dfec92421f571c34069893af08cc,16062
 - base-orphans-0.8.6@sha256:eb6758d0160d607e0c45dbd6b196f515b9a589fd4f6d2f926929dd5d56282d37,3175

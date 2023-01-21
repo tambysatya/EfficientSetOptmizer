@@ -27,20 +27,20 @@ type SRUBT = StateT SRUB
 mkSRUB :: GlobalBounds -> SRUB
 mkSRUB gbnds = SRUB [mkZone gbnds] (YArchive []) (XeArchive [])
 
-updateSR :: (MonadIO m) => GlobalBounds -> ExploredUB -> ProjDir -> Maybe (HyperOpt, Point, SubOpt) -> SubOpt -> SRUBT m ()
+updateSR :: (MonadIO m) => GlobalBounds -> ExploredUB -> ProjDir -> Maybe (HyperOpt, Point, SubOpt, Double) -> SubOpt -> SRUBT m ()
 updateSR gbnds zexp pdir Nothing _ = do
     sr <- use srUB
     -- TODO archive
     srUB .= catMaybes (updateZoneNothing gbnds zexp pdir <$> sr)
     yArchive %= insertYMdl (mkYMdl zexp Nothing)
 
-updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval)) estimation@(SubOpt s) = do --SRUB mdl $ sr >>= updateZoneJustWithRR gbnds zexp hopt pdir lb pt estimation
+updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval,lb_l)) estimation@(SubOpt s) = do --SRUB mdl $ sr >>= updateZoneJustWithRR gbnds zexp hopt pdir lb pt estimation
         sr <- use srUB
         ret <- forM sr $ \u -> updateZoneJustWithRR gbnds zexp pdir hopt lb_l (pt,ptval) estimation u
 
-        yArchive %= insertYMdl (mkYMdl zexp (Just pt))
+        yArchive %= insertYMdl (mkYMdl zexp (Just lb_l))
         srUB .= concat ret
-    where lb_l = _ptPerf pt A.! l
+    --where lb_l = _ptPerf pt A.! l
 
 
 updateSR_noRR :: (MonadIO m) => GlobalBounds -> (Point,SubOpt) -> SubOpt -> SRUBT m ()

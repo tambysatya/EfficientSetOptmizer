@@ -21,7 +21,7 @@ verifyDominance pt = zoom reoptMdl $ fromJust <$> exploreLargeM (_ptPerf pt) (Ju
    
 {-| Explores the projection of the zone with the additional constraint to improve the current estimation
     A warmstart can be provided-}
-exploreProjection :: (MonadIO m) => ExploredUB -> SubOpt -> Maybe Point -> AlgorithmT m (Maybe Point)
+exploreProjection :: (MonadIO m) => ExploredUB -> SubOpt -> Maybe Point -> AlgorithmT m (Maybe (Point,OptValue))
 exploreProjection (ExploredUB zexp) (SubOpt estimation) warmstartM = do
         zoom exploreMdl $ do
                omitConstraintOnObjM pdir
@@ -29,7 +29,14 @@ exploreProjection (ExploredUB zexp) (SubOpt estimation) warmstartM = do
 
                exploreSetCutUB $ estimation - 0.5
 
-               ret <- exploreStrictM (toBound zexp) warmstartM
+               ret <- do
+                    ptM <- exploreStrictM (toBound zexp) warmstartM
+                    case ptM of
+                        Nothing -> pure Nothing
+                        Just pt -> do
+                            val <- objValueM
+                            pure $ Just (pt,val)
+               
 
                addConstraintOnObjM pdir
                setObjectiveCoefM pdir 0
@@ -38,16 +45,11 @@ exploreProjection (ExploredUB zexp) (SubOpt estimation) warmstartM = do
     where (ProjDir pdir) = snd $ _szMaxProj $ zexp
 
 effsetComputeLBOnProj :: (MonadIO m) => ExploredUB -> AlgorithmT m (Maybe (Point, HyperOpt))
-effsetComputeLBOnProj (ExploredUB zexp) = do
-    --it <- use $ stats.nbIt
-    zoom optEff $ do
+effsetComputeLBOnProj (ExploredUB zexp) = zoom optEff $ do
         -- exportModelM $ "test" ++ show it ++ ".lp"
-        strictUpperBoundM $ toBound zexp
         omitConstraintOnObjM pdir
         ret <- do
-            --ptM <- exploreStrictM (toBound zexp) warmstartM
-            ptM <- if isNothing warmstartM then solveM
-                                           else fmap Just $ solveFromPointM $ fromJust warmstartM
+            ptM <- exploreStrictM (toBound zexp) warmstartM
             case ptM of 
                 Nothing -> pure Nothing
                 Just pt -> do
