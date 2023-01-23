@@ -21,7 +21,8 @@ import Control.Monad
 import Control.Monad.State
 
 
-newtype FunCoefs = FunCoefs [(Int,Double)]
+data FunCoefs = FunCoefs {_fDomCoefs :: [(Int,Double)],
+                             _fObjCoefs :: [(Int,Double)]}
 
 data ExploreMdl = ExploreMdl !MOIPScheme !CPX.IloRange
 data ReoptMdl = ReoptMdl !MOIPScheme
@@ -34,10 +35,11 @@ instance MOIP LBMdl where toMOIPScheme (LBMdl mdl) = mdl
 
 
 mkExploreMdl :: CPX.IloEnv -> Domain -> FunCoefs -> IO ExploreMdl
-mkExploreMdl env dom (FunCoefs fcoefs) = do
+mkExploreMdl env dom (FunCoefs fcoefs ocoefs) = do
     moip <- mkMOIPScheme env dom
     cut <- newIloObject moip
     forM fcoefs $ \(i,vi) -> CPX.setLinearCoef cut (_domvars moip A.! i) vi
+    forM ocoefs $ \(i,vi) -> CPX.setLinearCoef cut (_objvars moip A.! i) vi
     moip `add` cut
     pure $ ExploreMdl moip cut
 
@@ -58,9 +60,10 @@ mkReoptMdl' env dom fcoefs yIPts = do
  where p = nbObjVars dom
 
 mkLBMdl :: CPX.IloEnv -> Domain -> FunCoefs -> IO LBMdl
-mkLBMdl env dom (FunCoefs fcoefs) = do
+mkLBMdl env dom (FunCoefs fcoefs ocoefs) = do
     moip <- mkMOIPScheme env dom
     forM fcoefs $ \(i,vi) -> CPX.setLinearCoef (_objfun moip) (_domvars moip A.! i) vi
+    forM ocoefs $ \(i,vi) -> CPX.setLinearCoef (_objfun moip) (_objvars moip A.! i) vi
     pure $ LBMdl moip
 
 exploreSetCutUB :: (MonadIO m) => Double -> StateT ExploreMdl m ()
@@ -71,4 +74,6 @@ exploreSetCutUB val = do
 
 
 evaluatePoint :: FunCoefs -> Point -> Double
-evaluatePoint (FunCoefs fcoefs) pt = sum $ [vi*(_ptSol pt A.! i) | (i,vi) <- fcoefs]
+evaluatePoint (FunCoefs fcoefs ocoefs) pt =  osum+dsum
+    where dsum = sum $ [vi*(_ptSol pt A.! i) | (i,vi) <- fcoefs]
+          osum = sum $ [vi*(_ptPerf pt A.! i) | (i,vi) <- ocoefs]

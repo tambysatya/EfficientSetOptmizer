@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module MOIP.Type where
+module MOIP.Type (MOIPScheme (..), mkMOIPScheme, deleteMOIPScheme, IloRangeArray(..), IloNumVarArray(..), BoolVarArray(..)) where
 
 import MOIP.Domain
 
@@ -23,13 +23,14 @@ data MOIPScheme = MOIPScheme { getEnv :: !IloEnv
 
                               ,_objctrs :: !IloRangeArray
                               ,_domctrs :: !IloRangeArray
+                              ,_objbind :: !IloRangeArray
 
                               ,_objvars :: !IloNumVarArray
                               ,_domvars :: !BoolVarArray}
 makeLenses ''MOIPScheme
 
 deleteMOIPScheme :: MOIPScheme -> IO ()
-deleteMOIPScheme (MOIPScheme env mdl cpx ofun octrs dctrs ovars dvars) = do
+deleteMOIPScheme (MOIPScheme env mdl cpx ofun octrs dctrs objbind ovars dvars) = do
             forM_ (A.elems ovars) $ \oi -> setLinearCoef ofun oi 1
             forM_ (A.elems dvars) $ \di -> setLinearCoef ofun di 1
             forM_ (A.elems octrs) $ \ci -> forM (A.elems dvars) $ \di -> setLinearCoef ci di 1
@@ -71,7 +72,7 @@ mkMOIPScheme env dom@(objcoefs, lbcoefs, ctrcoefs, ubcoefs) = do
         ofun <- newIloObject env
         setMinimize ofun
         mdl `add` ofun
-        pure $ MOIPScheme env mdl cpx ofun (A.listArray (1,p) octrs) (A.listArray (1,m) dctrs) ovars dvars
+        pure $ MOIPScheme env mdl cpx ofun (A.listArray (1,p) octrs) (A.listArray (1,m) dctrs) (A.listArray (1,p) objbindctrs) ovars dvars
 
     where (m,n,p) = (nbDomCtrs dom, nbDomVars dom, nbObjVars dom)
 

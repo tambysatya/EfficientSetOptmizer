@@ -2,7 +2,7 @@
 module MOIP.Class
 
 (
-MOIP(..), deleteMOIP, exportModelM
+MOIP(..), deleteMOIP, exportModel, exportModelM
 ,newIloObject, newIloObjectM, add, addM, remove, removeM
 ,setObjectiveCoef, setObjectiveCoefM, setMinimize, setMinimizeM, setMaximize, setMaximizeM
 ,omitConstraintOnObj, omitConstraintOnObjM, addConstraintOnObj, addConstraintOnObjM
@@ -10,7 +10,7 @@ MOIP(..), deleteMOIP, exportModelM
 ,objValue, objValueM
 ,solve, solveM, solveFromPoint, solveFromPointM
 ,exploreStrict, exploreStrictM, exploreLarge, exploreLargeM
-, MOIPScheme, mkMOIPScheme, _objvars, _domvars, _objfun 
+, MOIPScheme, mkMOIPScheme, _objvars, _domvars, _objfun , _objbind
 ,MOIP.OptValue(..)
 
 )
@@ -86,6 +86,7 @@ solveFromPoint moip pt = MOIP.solveFromPoint (toMOIPScheme moip) pt
 exploreStrict :: MOIP a => a -> A.Array Int Double -> Maybe Point -> IO (Maybe Point)
 exploreStrict moip ub ptM = do
     strictUpperBound moip ub
+    -- moip `exportModel` "exploring.lp"
     case ptM of
         Nothing -> solve moip
         Just pt -> Just <$> solveFromPoint moip pt
