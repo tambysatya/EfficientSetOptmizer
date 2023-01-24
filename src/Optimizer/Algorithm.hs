@@ -54,8 +54,10 @@ optimize = do
                 then do
                     logM $ "\t X [compute lb]"
                     stats.nbInfeasible += 1
-                    searchRegion.xeArchive %= insertXeMdl zexp  Nothing
+                    --searchRegion.xeArchive %= insertXeMdl zexp  Nothing
                     zoom searchRegion $ updateSR gbnds zexp pdir Nothing estimation
+                    srstats <- use $ searchRegion.srStats
+                    stats.discarded %= (srstats<>)
                     optimize 
                 else do
                     logM $ "\t lbPt=" ++ show lbPt ++ " " ++ show lb
@@ -85,12 +87,16 @@ optimize = do
                     
 
                     curval <- use bestVal
-                    searchRegion.xeArchive %= insertXeMdl zexp  (Just lb)
+                    --searchRegion.xeArchive %= insertXeMdl zexp  (Just lb)
                     
                     -- Search region is updated with the lowerbound obtained from the EXPLORATION (and not the non-dominated point) since it does not
                     -- necessarily improves the estimation
                     -- The archive is updated accordingly
                     zoom searchRegion $ updateSR gbnds zexp pdir (Just (lb,bestsol,bestval,weakNDl)) curval
+                    srstats <- use $ searchRegion.srStats
+                    stats.discarded %= (srstats<>)
+
+                    ndpts %= (S.insert bestsol)
                     
                     optimize
                     

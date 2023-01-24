@@ -47,3 +47,5 @@ instance Show Point where
     show = show . A.elems . _ptPerf
 instance Eq Point where
     x == y = A.elems (_ptPerf x) == A.elems (_ptPerf y) -- TODO dangereux
+instance Ord Point where
+    x `compare` y = _ptPerf x `compare` _ptPerf y

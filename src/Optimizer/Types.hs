@@ -24,21 +24,24 @@ data Algorithm = Algorithm {
 
                     _searchRegion :: SRUB,
                     
-                    _ndpts :: S.Set Bound,
+                    _ndpts :: S.Set Point,
                     _bestVal :: SubOpt,
                     _stats :: Stats
                  }
-data Stats = Stats {_lmax :: Int,
-                    _ltotal :: Int,
-                    _nbIt :: Int,
-                    _nbInfeasible :: Int
+data Stats = Stats {_lmax :: Int
+                    ,_ltotal :: Int
+                    ,_discarded :: SRStats
+                    ,_nbInfeasible :: Int
+                    ,_nbIt :: Int
                     }
 
 makeLenses ''Stats
 makeLenses ''Algorithm
 
-mkStats = Stats 0 0 0 0
-instance Show Stats where show (Stats lm la it inf) = show lm ++ ";" ++ show (fromIntegral la/fromIntegral it) ++ ";" ++ show it ++ ";" ++ show inf
+mkStats = Stats 0 0 mempty 0 0
+instance Show Stats where show (Stats lm la discarded inf it) = show lm ++ ";" ++ show (fromIntegral la/fromIntegral it) ++ ";" ++ dumpDiscarded ++ ";" ++ show inf ++ ";" ++ show it 
+                                where dumpDiscarded = (show $ (fromIntegral $ _nbCutRR discarded) / fromIntegral (_nbChildren discarded)) ++ ";" ++ (show  $ (fromIntegral $ _nbCutLB discarded ) / fromIntegral (_nbChildren discarded))
+showStatsHeader = "lmax;lavg;rr;cutlb;inf,nbit"
 
 type AlgorithmT = StateT Algorithm
 logM :: (MonadIO m) => String -> StateT a m ()

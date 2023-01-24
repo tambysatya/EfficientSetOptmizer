@@ -39,13 +39,18 @@ mkSRUB gbnds = SRUB [mkZone gbnds] mkSRStats (YArchive []) (XeArchive [])
 mkSRStats :: SRStats
 mkSRStats = SRStats 0 0 0 0 0
 
+instance Semigroup SRStats where
+    (SRStats a b c d e) <> (SRStats a' b' c' d' e') = SRStats (a+a') (b+b') (c+c') (d+d') (e+e')
+instance Monoid SRStats where
+    mempty = mkSRStats
+
 updateSR :: (MonadIO m) => GlobalBounds -> ExploredUB -> ProjDir -> Maybe (HyperOpt, Point, SubOpt, Double) -> SubOpt -> SRUBT m ()
 updateSR gbnds zexp pdir Nothing _ = do
     srStats .= mkSRStats
     sr <- use srUB
     -- TODO archive
     srUB .= catMaybes (updateZoneNothing gbnds zexp pdir <$> sr)
-    yArchive %= insertYMdl (mkYMdl zexp Nothing)
+    --yArchive %= insertYMdl (mkYMdl zexp Nothing)
     use srStats >>= \st -> logM ("\t\t [discard report] " ++ show st)
 
 updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval,lb_l)) estimation@(SubOpt s) = do --SRUB mdl $ sr >>= updateZoneJustWithRR gbnds zexp hopt pdir lb pt estimation
@@ -53,7 +58,7 @@ updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval,lb_l)) estimation@(Su
         sr <- use srUB
         ret <- forM sr $ \u -> updateZoneJustWithRR gbnds zexp pdir hopt lb_l (pt,ptval) estimation u
 
-        yArchive %= insertYMdl (mkYMdl zexp (Just lb_l))
+       -- yArchive %= insertYMdl (mkYMdl zexp (Just lb_l))
         srUB .= concat ret
         use srStats >>= \st -> logM ("\t\t [discard report] " ++ show st)
     --where lb_l = _ptPerf pt A.! l
@@ -128,7 +133,9 @@ updateZoneJust gbnds ub (pt,ptval)
                     srStats.nbArchive += 1
                     -- logM $ "\t\t discarding " ++ show ci ++ " [YArchive: " ++ show ymdl ++ "]"
                     pure False
-        filterM filterFun children
+        ret <- filterM filterFun children
+        srStats.nbChildren += length ret
+        pure ret
     | pt `domL` ub = do
         --logM $ "\t\t Updating " ++ show ub
         srStats.nbUpdated += 1
