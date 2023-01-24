@@ -64,27 +64,6 @@ updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval,lb_l)) estimation@(Su
     --where lb_l = _ptPerf pt A.! l
 
 
-updateSR_noRR :: (MonadIO m) => GlobalBounds -> (Point,SubOpt) -> SubOpt -> SRUBT m ()
-updateSR_noRR gbnds pt (SubOpt estimation) = do
-    srStats .= mkSRStats
-    sr <- use srUB 
-    yar <- use yArchive
-    ret <- forM sr $ \u -> updateZoneJust gbnds u pt
-
-    let --result = filter f $ concat ret
-        --f z = _szLB z < HyperOpt estimation
-        fun :: (MonadIO m) => UB -> SRUBT m Bool
-        fun z 
-            | _szLB z >= HyperOpt estimation = do
-                srStats.nbCutLB += 1
-                --liftIO $ putStrLn $ "\t\t discarding " ++ show z ++ " [" ++ show (_szLB z) ++ "]"
-                pure False
-            | otherwise = pure True
-    result <- filterM fun $ concat ret
-    srUB .= result
-    use srStats >>= \st -> logM ("\t\t [discard report] " ++ show st)
-
-    --SRUB mdl $ concatMap (\u -> updateZoneJust gbnds u pt) sr
 
 -- TODO strict evaluation
 updateZoneNothing :: GlobalBounds -> ExploredUB -> ProjDir -> UB -> Maybe UB
@@ -121,33 +100,11 @@ updateZoneJustWithRR gbnds zexp pdir hopt lb_l pt estimation@(SubOpt cur) ub = d
             -- pure $ catMaybes $ applyReductionRule zexp pdir lb_l estimation <$> newzones
             --catMaybes $ applyReductionRule zexp pdir lb_l estimation <$> updateZoneJustHOpt gbnds zexp hopt ub pt 
 
-updateZoneJust :: (MonadIO m) => GlobalBounds -> UB -> (Point,SubOpt) -> SRUBT m [UB]
-updateZoneJust gbnds ub (pt,ptval)
-    | pt `domS` ub = do
-        yar <- use yArchive 
-        let children = catMaybes [child gbnds pt ptval ub i| i <- ChildDir <$> [1..p]]
-            filterFun :: (MonadIO m) => UB -> SRUBT m Bool
-            filterFun ci = case checkYMdl (ExploredUB ci) yar of
-                Nothing -> pure True
-                Just ymdl -> do
-                    srStats.nbArchive += 1
-                    -- logM $ "\t\t discarding " ++ show ci ++ " [YArchive: " ++ show ymdl ++ "]"
-                    pure False
-        ret <- filterM filterFun children
-        srStats.nbChildren += length ret
-        pure ret
-    | pt `domL` ub = do
-        --logM $ "\t\t Updating " ++ show ub
-        srStats.nbUpdated += 1
-        pure $ [updateDefiningPoints pt ptval ub]
-    | otherwise = pure $ [ub]
-  where p = dimension ub
-
 updateZoneJustReopt :: (MonadIO m) => GlobalBounds -> UB -> (Point,SubOpt) -> SRUBT m [UB]
 updateZoneJustReopt gbnds ub (pt,ptval) 
         | pt `domS` ub = do 
                 --liftIO $ putStrLn $ "\t\t Splitting " ++ show ub  ++ " " ++ show (_szLB ub)
-                srStats.nbChildren +=1
+                srStats.nbChildren += dimension ub
                 pure $ catMaybes [child gbnds pt ptval ub i | i <- ChildDir <$> [1..p]]
         | pt `domL` ub = do -- pure [updateDefiningPoints pt ub]
                 --liftIO $ putStrLn $ "\t\t Updating " ++ show ub ++ " " ++ show (_szLB ub)
