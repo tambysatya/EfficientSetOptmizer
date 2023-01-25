@@ -22,11 +22,12 @@ description:         Please see the README on GitHub at <https://github.com/gith
 dependencies:
 - base >= 4.7 && < 5
 #- NadirSolver
-- TamVan19
+#- TamVan19
 - lens  >= 4.19 && < 5
 - array
 - mtl
 - containers
+- random
 
 
 
@@ -43,7 +44,24 @@ ghc-options:
 
 library:
   source-dirs: src
-  cc-options: -m64 -fPIC -fno-strict-aliasing -fexceptions -DNDEBUG -DIL_STD
+  other-extensions:    ForeignFunctionInterface, ConstrainedClassMethods
+  c-sources:
+      - cbits/IloBoolVar.cpp
+      - cbits/IloCplex.cpp 
+      - cbits/IloEnv.cpp
+      - cbits/IloModel.cpp
+      - cbits/IloNumVar.cpp 
+      - cbits/IloObjective.cpp 
+      - cbits/IloRange.cpp 
+      - cbits/MIPInfoCallback.cpp 
+      - cbits/MIPIncumbentCallback.cpp
+  extra-libraries: gomp concert ilocplex cplex m pthread stdc++ dl
+  #cc-options: -m64 -O3 -fPIC -fno-strict-aliasing -fexceptions -DNDEBUG -DIL_STD #-ldl
+  cc-options: -m64 -O3 -fPIC -fno-strict-aliasing -fexceptions -DNDEBUG -DIL_STD -ldl
+  
+  include-dirs: /home/sat/cplex2210/cplex/include /home/sat/cplex2210/concert/include
+  extra-lib-dirs: /home/sat/cplex2210/cplex/lib/x86-64_linux/static_pic /home/sat/cplex2210/concert/lib/x86-64_linux/static_pic
+
 
 executables:
   EfficientSetOptimizer-exe:

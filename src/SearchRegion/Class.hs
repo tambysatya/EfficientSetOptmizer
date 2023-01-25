@@ -2,6 +2,7 @@
 module SearchRegion.Class where
 
 import qualified Data.Array as A
+import Data.Function
 
 type Bound = A.Array Int Double
 newtype Ideal = Ideal Bound
@@ -44,3 +45,7 @@ x `domL` y = and $ zipWith (<=) (A.elems $ toBound x) (A.elems $ toBound y)
 
 instance Show Point where
     show = show . A.elems . _ptPerf
+instance Eq Point where
+    x == y = A.elems (_ptPerf x) == A.elems (_ptPerf y) -- TODO dangereux
+instance Ord Point where
+    x `compare` y = _ptPerf x `compare` _ptPerf y

@@ -1,103 +1,176 @@
-{-# LANGUAGE FlexibleInstances, UndecidableInstances #-}
-    {-| Interface for developping multiobjective models.
 
-    Provides generic functions for exploring search zones, adding / removing budget constrains 
-    or providing a warm start to the solver
+module MOIP.Class
 
-    A multiobjective integer model contains a domain X which is described using linearly constrained binary variables x = (x_1,...,x_n) 
-    and p objective functions that are stored in p variables y_i = f_i (x).
-    Moreover, p constraints (so called budget constraints), each one constraining an objective y_i are introduced.    
-. -}
-module MOIP.Class where
+(
+MOIP(..), deleteMOIP, exportModel, exportModelM
+,newIloObject, newIloObjectM, add, addM, remove, removeM
+,setObjectiveCoef, setObjectiveCoefM, setMinimize, setMinimizeM, setMaximize, setMaximizeM
+,omitConstraintOnObj, omitConstraintOnObjM, addConstraintOnObj, addConstraintOnObjM
+,strictUpperBound, strictUpperBoundM, largeUpperBound, largeUpperBoundM
+,objValue, objValueM
+,solve, solveM, solveFromPoint, solveFromPointM
+,exploreStrict, exploreStrictM, exploreLarge, exploreLargeM
+, MOIPScheme, mkMOIPScheme, _objvars, _domvars, _objfun , _objbind
+,MOIP.OptValue(..)
 
+)
+
+where
+
+
+import MOIP.Type
+import qualified MOIP.Methods as MOIP
 import SearchRegion.Class
-import IloCplex hiding (exportModel, getObjValue)
+
+import qualified IloCplex as CPX
+
 import qualified Data.Array as A
 import Control.Monad.State
-import MOIP.Scheme
 
-          
-
-{-| A multi-objective integer program -}  
 class MOIP a where
-    nbCrits :: a -> Int
-    setLocalUpperBound :: (Boundary z) => a -> z -> IO () -- | Specify the local upper bound to explore
-    solve     :: a -> IO (Maybe Point) -- | Solves and returns the optimal point if the domain is feasible
-         
- {-| A simple interface for writing multi-objective programs. -}
-class SimpleMOIP a where
-    toMOIPScheme :: a -> MOIPScheme 
-    touchMOIP :: a -> IO ()
-
-class AsymetricMOIP a where
-   selectObjective :: a -> ProjDir -> IO a
-
-
-instance SimpleMOIP MOIPScheme where
+    toMOIPScheme :: a -> MOIPScheme
+instance MOIP MOIPScheme where
     toMOIPScheme = id
-instance (SimpleMOIP a) => MOIP a where
-    nbCrits moip = snd $ A.bounds $ (_moipsObjvars $ toMOIPScheme moip)
-    setLocalUpperBound moip = _setLocalUpperBound (toMOIPScheme moip)
-    solve = _solve . toMOIPScheme
-   
 
-startFrom :: (SimpleMOIP a) => a -> Point -> IO MIPStart -- | Uses the provided point as a warm start. Specifying a warm start usually significantly reduces the time spent to solve the model, since the evaluation tree can be pruned.
-startFrom moip = _startFrom (toMOIPScheme moip)
 
-setObjectiveCoef :: (SimpleMOIP a) => a -> Int -> Double -> IO () -- | Modify the weight of the objective f_k in the objective function
-setObjectiveCoef moip i = _setObjectiveCoef (toMOIPScheme moip) i
+{-| Pure version -}
 
-ommitConstraintOnObj :: (SimpleMOIP a) => a -> Int -> IO ()
-ommitConstraintOnObj moip = _ommitConstraintOnObj (toMOIPScheme moip)
+deleteMOIP :: (MOIP a) => a -> IO ()
+deleteMOIP moip = deleteMOIPScheme $ toMOIPScheme moip
 
-addConstraintOnObj :: (SimpleMOIP a) => a -> Int -> IO ()
-addConstraintOnObj moip = _addConstraintOnObj (toMOIPScheme moip)
+exportModel :: MOIP a => a -> String -> IO ()
+exportModel moip str = MOIP.exportModel (toMOIPScheme moip) str
 
-exportModel :: (SimpleMOIP a) => a -> String -> IO ()
-exportModel moip str = _exportModel (toMOIPScheme moip) str
+newIloObject :: (MOIP a, CPX.IloObject b) => a -> IO b
+newIloObject moip = liftIO $ MOIP.newIloObject $ toMOIPScheme moip
+add :: (MOIP a, CPX.IloAddable b) => a -> b -> IO ()
+add moip a = liftIO $ MOIP.moipAdd (toMOIPScheme  moip) a
+remove :: (MOIP a, CPX.IloAddable b) => a -> b -> IO ()
+remove moip a = liftIO $ MOIP.moipRemove (toMOIPScheme moip) a
 
-exportModelM :: (SimpleMOIP a, MonadIO m) => String -> StateT a m ()
+
+
+    {-| Objective function -}
+setObjectiveCoef :: (MOIP a) => a -> Int -> Double -> IO ()
+setObjectiveCoef mdl i v = MOIP.setObjectiveCoef (toMOIPScheme mdl) i v
+
+setMinimize :: (MOIP a) => a -> IO ()
+setMinimize moip = MOIP.setMinimize (toMOIPScheme moip)
+setMaximize :: (MOIP a) => a -> IO ()
+setMaximize moip = MOIP.setMaximize (toMOIPScheme moip)
+
+    {-| Constraints -}
+omitConstraintOnObj :: (MOIP a) =>  a -> Int -> IO ()
+omitConstraintOnObj moip i = MOIP.omitConstraintOnObj (toMOIPScheme moip)  i
+
+addConstraintOnObj :: (MOIP a) =>  a -> Int -> IO ()
+addConstraintOnObj moip i = MOIP.addConstraintOnObj (toMOIPScheme moip) i
+
+strictUpperBound :: MOIP a => a -> A.Array Int Double -> IO ()
+strictUpperBound moip bnd = MOIP.strictUpperBound (toMOIPScheme moip) bnd
+largeUpperBound :: MOIP a => a -> A.Array Int Double -> IO ()
+largeUpperBound moip bnd = MOIP.largeUpperBound (toMOIPScheme moip) bnd
+
+
+    {-| Solve -}
+objValue :: MOIP a => a -> IO MOIP.OptValue
+objValue moip = MOIP.objValue $ toMOIPScheme moip
+
+solve :: MOIP a => a -> IO (Maybe Point)
+solve moip = MOIP.solve $ toMOIPScheme moip
+
+solveFromPoint :: MOIP a => a -> Point -> IO Point
+solveFromPoint moip pt = MOIP.solveFromPoint (toMOIPScheme moip) pt
+
+
+exploreStrict :: MOIP a => a -> A.Array Int Double -> Maybe Point -> IO (Maybe Point)
+exploreStrict moip ub ptM = do
+    strictUpperBound moip ub
+    -- moip `exportModel` "exploring.lp"
+    case ptM of
+        Nothing -> solve moip
+        Just pt -> Just <$> solveFromPoint moip pt
+exploreLarge :: MOIP a => a -> A.Array Int Double -> Maybe Point -> IO (Maybe Point)
+exploreLarge moip ub ptM = do
+    largeUpperBound moip ub
+    case ptM of
+        Nothing -> solve moip
+        Just pt -> Just <$> solveFromPoint moip pt
+ 
+    
+
+
+{-| Monadic Version -}
+exportModelM :: (MOIP a, MonadIO m) => String -> StateT a m ()
 exportModelM str = do
-    mdl <- get
-    liftIO $ exportModel mdl str
+    moip <- get
+    liftIO $ moip `exportModel` str
+newIloObjectM :: (MOIP a, CPX.IloObject b, MonadIO m) => StateT a m b
+newIloObjectM = do
+    moip <- get
+    liftIO $ newIloObject moip
+addM :: (MOIP a, CPX.IloAddable b, MonadIO m) => b -> StateT a m ()
+addM a = do
+    moip <- get
+    liftIO $ moip `add` a
+removeM :: (MOIP a, CPX.IloAddable b, MonadIO m) => b -> StateT a m ()
+removeM a = do
+    moip <- get
+    liftIO $ moip `remove` a
+setObjectiveCoefM :: (MOIP a, MonadIO m) => Int -> Double -> StateT a m ()
+setObjectiveCoefM i vi = do
+    moip <- gets toMOIPScheme
+    liftIO $ MOIP.setObjectiveCoef moip i vi
+setMaximizeM :: (MOIP a, MonadIO m) => StateT a m ()
+setMaximizeM = do
+    moip <- gets toMOIPScheme
+    liftIO $ MOIP.setMaximize moip
+setMinimizeM :: (MOIP a, MonadIO m) => StateT a m ()
+setMinimizeM = do 
+    moip <- gets toMOIPScheme
+    liftIO $ MOIP.setMinimize moip
 
-reoptimizeFrom :: (SimpleMOIP a, Boundary z) => a -> z -> IO ()
-reoptimizeFrom moip = _reoptimizeFrom (toMOIPScheme moip)
 
-solveFromPoint :: (SimpleMOIP a) => a -> Point -> IO (Maybe Point)
-solveFromPoint moip = _solveFromPoint (toMOIPScheme moip)
+omitConstraintOnObjM :: (MOIP a, MonadIO m) => Int -> StateT a m ()
+omitConstraintOnObjM i = do
+    moip <- gets toMOIPScheme
+    liftIO $ MOIP.omitConstraintOnObj moip i
+addConstraintOnObjM :: (MOIP a, MonadIO m) => Int -> StateT a m ()
+addConstraintOnObjM i = do
+    moip <- gets toMOIPScheme
+    liftIO $ MOIP.addConstraintOnObj moip i  
 
-solveFromPointM :: (MonadIO m, SimpleMOIP a) => Point -> StateT a m (Maybe Point)
-solveFromPointM pt = do
-    me <- get
-    liftIO $ solveFromPoint me pt
+largeUpperBoundM :: (MOIP a, MonadIO m) => A.Array Int Double -> StateT a m ()
+largeUpperBoundM bnd = do
+    moip <- gets toMOIPScheme
+    liftIO $ MOIP.largeUpperBound moip bnd
+strictUpperBoundM :: (MOIP a, MonadIO m) => A.Array Int Double -> StateT a m ()
+strictUpperBoundM bnd = do
+    moip <- gets toMOIPScheme
+    liftIO $ MOIP.strictUpperBound moip bnd
+objValueM :: (MOIP a, MonadIO m) => StateT a m MOIP.OptValue
+objValueM = do
+    moip <- gets toMOIPScheme
+    liftIO $ MOIP.objValue moip
 
-reoptimizeFromM :: (MonadIO m, SimpleMOIP a, Boundary z) => z -> StateT a m ()
-reoptimizeFromM z = do
-    me <- get
-    liftIO $ reoptimizeFrom me z
-setLocalUpperBoundM :: (MonadIO m, SimpleMOIP a, Boundary z) => z -> StateT a m ()
-setLocalUpperBoundM z = do
-    me <- get
-    liftIO $ setLocalUpperBound me z
-
-setEqualityConstraint :: (SimpleMOIP a) => a -> Int -> Double -> IO ()
-setEqualityConstraint moip i val = _setEqualityConstraint (toMOIPScheme moip) i val
-
-selectObjectiveM :: (MonadIO m, AsymetricMOIP a) => ProjDir -> StateT a m ()
-selectObjectiveM k = do
-    me <- get
-    me' <- liftIO $ selectObjective me k
-    put me'
-
-solveM :: (MonadIO m, SimpleMOIP a) => StateT a m (Maybe Point)
+solveM :: (MOIP a, MonadIO m) => StateT a m (Maybe Point)
 solveM = do
-    mdl <- get
-    liftIO $ MOIP.Class.solve mdl
+    moip <- gets toMOIPScheme
+    liftIO $ MOIP.solve moip
+    
+solveFromPointM :: (MOIP a, MonadIO m) => Point -> StateT a m Point
+solveFromPointM pt = do
+    moip <- gets toMOIPScheme
+    liftIO $ MOIP.solveFromPoint moip pt
 
-getObjValue :: (SimpleMOIP a) => a -> IO Double
-getObjValue moip = _getObjValue (toMOIPScheme moip)
-getObjValueM :: (MonadIO m, SimpleMOIP a) => StateT a m Double
-getObjValueM = do
-    me <- get
-    liftIO $ getObjValue me
+exploreStrictM :: (MOIP a, MonadIO m) => A.Array Int Double -> Maybe Point -> StateT a m (Maybe Point)
+exploreStrictM ub ptM = do
+    moip <- get
+    liftIO $ exploreStrict moip ub ptM
+exploreLargeM :: (MOIP a, MonadIO m) => A.Array Int Double -> Maybe Point -> StateT a m (Maybe Point)
+exploreLargeM ub ptM = do
+    moip <- get
+    liftIO $ exploreLarge moip ub ptM
+
+
+
