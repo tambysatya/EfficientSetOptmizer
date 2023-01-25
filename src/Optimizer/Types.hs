@@ -40,8 +40,10 @@ makeLenses ''Algorithm
 
 mkStats = Stats 0 0 mempty 0 0
 instance Show Stats where show (Stats lm la discarded inf it) = show lm ++ ";" ++ show (fromIntegral la/fromIntegral it) ++ ";" ++ dumpDiscarded ++ ";" ++ show inf ++ ";" ++ show it 
-                                where dumpDiscarded = (show $ (fromIntegral $ _nbCutRR discarded) / fromIntegral (_nbChildren discarded)) ++ ";" ++ (show  $ (fromIntegral $ _nbCutLB discarded ) / fromIntegral (_nbChildren discarded))
-showStatsHeader = "lmax;lavg;rr;cutlb;inf,nbit"
+                                where dumpDiscarded = (show $ (fromIntegral $ _nbCutRR discarded) / fromIntegral (_nbChildren discarded)) ++ ";"
+                                                    ++ (show  $ (fromIntegral $ _nbCutLB discarded ) / fromIntegral (_nbChildren discarded)) ++ ";"
+                                                    ++ (show  $ (fromIntegral $ _nbArchive discarded ) / fromIntegral (_nbChildren discarded)) 
+showStatsHeader = "lmax;lavg;rr;cutlb;archive;inf,nbit"
 
 type AlgorithmT = StateT Algorithm
 logM :: (MonadIO m) => String -> StateT a m ()
@@ -57,8 +59,8 @@ mkAlgorithm env dom funcoefs = do
        putStrLn $ "bounds of the domain:" ++ show (yA, yI)
        Algorithm <$> pure globalbounds
                  <*> mkExploreMdl env dom funcoefs
-                 <*> mkReoptMdl' env dom funcoefs yIPts
-                 -- <*> mkReoptMdl env dom
+                 -- <*> mkReoptMdl' env dom funcoefs yIPts
+                 <*> mkReoptMdl env dom
                  <*> mkLBMdl env dom funcoefs
                  <*> pure (mkSRUB globalbounds) --mkSRUB env dom funcoefs globalbounds
                  <*> pure S.empty

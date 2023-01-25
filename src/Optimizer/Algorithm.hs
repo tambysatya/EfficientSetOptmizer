@@ -27,6 +27,7 @@ optimize = do
     gbnds <- use globalBounds
 
     sr <- use searchRegion
+    ndpt <- use ndpts
     estimation <- use bestVal
     if emptySR sr
         then pure ()
@@ -39,7 +40,7 @@ optimize = do
                 srsize = srSize sr
             --let (SRUB sr') = sr                    
             --logM $ "SR=" ++ show [(zi,_szMaxProj zi) | zi <- sr']
-            logM $ "exploring: " ++ show zexp ++  " " ++ show pdir ++ " " ++ show (_szLB $ fromExplored zexp) ++ " hv=" ++ show (fst $ _szMaxProj $ fromExplored zexp) ++ " size=" ++ show srsize  ++ " estimation=" ++ show estimation
+            logM $ "exploring: " ++ show zexp ++  " " ++ show pdir ++ " " ++ show (_szLB $ fromExplored zexp) ++ " hv=" ++ show (fst $ _szMaxProj $ fromExplored zexp) ++ " size=" ++ show srsize  ++ " estimation=" ++ show estimation ++ " |N|=" ++ show (S.size ndpt)
             stats.lmax %= max srsize
             stats.ltotal += srsize
             -- DEBUG
@@ -54,7 +55,7 @@ optimize = do
                 then do
                     logM $ "\t X [compute lb]"
                     stats.nbInfeasible += 1
-                    --searchRegion.xeArchive %= insertXeMdl zexp  Nothing
+                    searchRegion.xeArchive %= insertXeMdl zexp  Nothing
                     zoom searchRegion $ updateSR gbnds zexp pdir Nothing estimation
                     srstats <- use $ searchRegion.srStats
                     stats.discarded %= (srstats<>)
@@ -87,7 +88,7 @@ optimize = do
                     
 
                     curval <- use bestVal
-                    --searchRegion.xeArchive %= insertXeMdl zexp  (Just lb)
+                    searchRegion.xeArchive %= insertXeMdl zexp  (Just lb)
                     
                     -- Search region is updated with the lowerbound obtained from the EXPLORATION (and not the non-dominated point) since it does not
                     -- necessarily improves the estimation

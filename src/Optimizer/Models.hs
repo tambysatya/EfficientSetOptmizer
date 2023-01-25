@@ -1,6 +1,6 @@
 module Optimizer.Models
 
-(FunCoefs(..)
+(FunCoefs(..), evaluatePoint
 ,mkExploreMdl
 ,mkReoptMdl, mkReoptMdl'
 ,mkLBMdl

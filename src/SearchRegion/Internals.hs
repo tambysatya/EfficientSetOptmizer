@@ -49,8 +49,9 @@ updateSR gbnds zexp pdir Nothing _ = do
     srStats .= mkSRStats
     sr <- use srUB
     -- TODO archive
-    srUB .= catMaybes (updateZoneNothing gbnds zexp pdir <$> sr)
-    --yArchive %= insertYMdl (mkYMdl zexp Nothing)
+    retM <- mapM (updateZoneNothing gbnds zexp pdir) sr 
+    srUB .= catMaybes retM
+    yArchive %= insertYMdl (mkYMdl zexp Nothing)
     use srStats >>= \st -> logM ("\t\t [discard report] " ++ show st)
 
 updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval,lb_l)) estimation@(SubOpt s) = do --SRUB mdl $ sr >>= updateZoneJustWithRR gbnds zexp hopt pdir lb pt estimation
@@ -58,7 +59,7 @@ updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval,lb_l)) estimation@(Su
         sr <- use srUB
         ret <- forM sr $ \u -> updateZoneJustWithRR gbnds zexp pdir hopt lb_l (pt,ptval) estimation u
 
-       -- yArchive %= insertYMdl (mkYMdl zexp (Just lb_l))
+        yArchive %= insertYMdl (mkYMdl zexp (Just lb_l))
         srUB .= concat ret
         use srStats >>= \st -> logM ("\t\t [discard report] " ++ show st)
     --where lb_l = _ptPerf pt A.! l
@@ -66,10 +67,12 @@ updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval,lb_l)) estimation@(Su
 
 
 -- TODO strict evaluation
-updateZoneNothing :: GlobalBounds -> ExploredUB -> ProjDir -> UB -> Maybe UB
+updateZoneNothing :: (MonadIO m) => GlobalBounds -> ExploredUB -> ProjDir -> UB -> SRUBT m (Maybe UB)
 updateZoneNothing gbnds (ExploredUB zexp) pdir  z 
-    | proj pdir z `domL` proj pdir zexp = Nothing
-    | otherwise = Just z
+    | proj pdir z `domL` proj pdir zexp = do 
+        srStats.nbCutLB += 1
+        pure Nothing
+    | otherwise = pure $ Just z
     
 
 
@@ -77,11 +80,14 @@ updateZoneNothing gbnds (ExploredUB zexp) pdir  z
 updateZoneJustWithRR :: (MonadIO m) => GlobalBounds -> ExploredUB -> ProjDir -> HyperOpt -> Double -> (Point,SubOpt) -> SubOpt -> UB -> SRUBT m [UB]
 updateZoneJustWithRR gbnds zexp pdir hopt lb_l pt estimation@(SubOpt cur) ub = do
             newzones <- updateZoneJustReopt gbnds ub pt
-            ret <- forM newzones $ applyReductionRule zexp pdir hopt lb_l estimation
+            retM <- forM newzones $ applyReductionRule zexp pdir hopt lb_l estimation
             yar <- use yArchive
             xar <- use xeArchive
     
-            newzones' <- forM (catMaybes ret) $ \zi -> let yreqM = checkYMdl (ExploredUB zi) yar
+            let ret = catMaybes retM
+            newzones' <- if fmap toBound ret == [toBound ub]
+                                then pure retM
+                                else forM ret $ \zi -> let yreqM = checkYMdl (ExploredUB zi) yar
                                                        in case yreqM of
                                                             Nothing -> do 
                                                                 let xreqM = checkXeMdl zi estimation xar
