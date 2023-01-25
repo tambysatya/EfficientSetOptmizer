@@ -11,6 +11,6 @@ run_kp (){
     done
 }
 
-run_kp 3 100
+# run_kp 3 100
 run_kp 4 100
 run_kp 5 100

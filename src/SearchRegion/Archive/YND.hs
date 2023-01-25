@@ -19,7 +19,7 @@ data YMdl = YMdl { _ymdlZone :: !ExploredUB,
 instance Show YMdl where
     show (YMdl z opt) = "optYND z=" ++ show (A.elems $ toBound $ fromExplored z) ++ " opt_" ++ show optproj ++ "=" ++ show opt 
         where optproj = snd $ _szMaxProj $ fromExplored z
-newtype YArchive = YArchive [YMdl] --TODO
+newtype YArchive = YArchive ([YMdl]) --TODO
 
 
 mkYMdl :: ExploredUB -> Maybe Double -> YMdl

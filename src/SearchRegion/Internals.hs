@@ -19,12 +19,12 @@ import Control.Monad.State
 
 
 {-| TODO use a min heap -}
-data SRUB = SRUB {_srUB :: ![UB] , _srStats :: SRStats,  _yArchive :: YArchive, _xeArchive :: XeArchive}
-data SRStats = SRStats {_nbCutRR :: Int -- Number of children discarded using the reduction rules
-                        ,_nbCutLB :: Int -- number of zones discarded due to the lower bound estimation
-                        ,_nbArchive :: Int -- number of zones discarded due to the archive (postponed reduction rules)
-                        ,_nbUpdated :: Int -- Number of zones that have been updated (lowerbound or defining point)
-                        ,_nbChildren :: Int -- Number of created zones
+data SRUB = SRUB {_srUB :: ![UB] , _srStats :: SRStats,  _yArchive :: !YArchive, _xeArchive :: !XeArchive}
+data SRStats = SRStats {_nbCutRR :: !Int -- Number of children discarded using the reduction rules
+                        ,_nbCutLB :: !Int -- number of zones discarded due to the lower bound estimation
+                        ,_nbArchive :: !Int -- number of zones discarded due to the archive (postponed reduction rules)
+                        ,_nbUpdated :: !Int -- Number of zones that have been updated (lowerbound or defining point)
+                        ,_nbChildren :: !Int -- Number of created zones
                         }
 makeLenses ''SRUB
 makeLenses ''SRStats

@@ -23,7 +23,7 @@ mainRandom' = do
                     funcoefs = FunCoefs (zip [1..] (last objs)) []
                     dom' = (init objs,a,b,c)
                 --val <- runAlgorithm "nbdef-subopt-childhv-arfix" "kp.log" env dom funcoefs
-                runAlgorithm "refactor-noar-fixLeak-archive" logfile env dom' funcoefs
+                runAlgorithm "refactor-fixLeak-archive-fixleakAR" logfile env dom' funcoefs
         _ -> putStrLn "syntax: ./main KP instance logfile"
 
 
