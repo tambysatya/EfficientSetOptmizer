@@ -34,5 +34,22 @@ mainDCM = do
     --dom <- readVC srcname
     mkDCM env dom dstname
 
+
+mainDCMAP = do
+  let ins = [(3,30), (4,30), (5,30)] -- (7,50)]
+  --let ins = [(3,50),(4,20)]
+  env@(IloEnv ptr) <- newIloEnv
+  forM_ [(p,n,i) | (p,n) <- ins, i <- [1..10]]$ \(p,n,i) -> do
+    let 
+        srcname = "Instances/SatAP_random/" ++ mkAPName p n i ++ ".ins"
+        --srcname = "Instances/MOAP/" ++ mkAPName p n i ++ ".dat"
+        dstname = "Instances/MOAP/Boland_random/" ++ mkAPName p n i ++ ".lp"
+    putStrLn $ "converting " ++ srcname ++ " => " ++ dstname
+    dom <- readVC srcname
+    mkDCM env dom dstname
+
+
+
 mkKSName p n i = "SatKP_p-" ++ show p ++ "_n-" ++ show n ++ "_i-" ++ show i 
+mkAPName p n i = "SatAP_p-" ++ show p ++ "_n-" ++ show n ++ "_i-" ++ show i 
 

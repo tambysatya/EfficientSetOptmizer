@@ -51,7 +51,7 @@ updateSR gbnds zexp pdir Nothing _ = do
     -- TODO archive
     retM <- mapM (updateZoneNothing gbnds zexp pdir) sr 
     srUB .= catMaybes retM
-    yArchive %= insertYMdl (mkYMdl zexp Nothing)
+    -- yArchive %= insertYMdl (mkYMdl zexp Nothing)
     use srStats >>= \st -> logM ("\t\t [discard report] " ++ show st)
 
 updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval,lb_l)) estimation@(SubOpt s) = do --SRUB mdl $ sr >>= updateZoneJustWithRR gbnds zexp hopt pdir lb pt estimation
@@ -59,7 +59,7 @@ updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval,lb_l)) estimation@(Su
         sr <- use srUB
         ret <- forM sr $ \u -> updateZoneJustWithRR gbnds zexp pdir hopt lb_l (pt,ptval) estimation u
 
-        yArchive %= insertYMdl (mkYMdl zexp (Just lb_l))
+        --yArchive %= insertYMdl (mkYMdl zexp (Just lb_l))
         srUB .= concat ret
         use srStats >>= \st -> logM ("\t\t [discard report] " ++ show st)
     --where lb_l = _ptPerf pt A.! l
