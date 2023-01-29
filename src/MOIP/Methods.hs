@@ -19,6 +19,7 @@ import Control.Monad
 import Control.Lens
 import Data.Maybe
 import qualified Data.Array as A
+import qualified Data.Array.Unboxed as AU
 
 newtype OptValue = OptValue Double
     deriving (Eq,Ord,Num)
@@ -38,11 +39,11 @@ setMinimize :: MOIPScheme -> IO ()
 setMinimize moip = CPX.setMinimize $ _objfun moip
 
 {-| Constraints -}
-largeUpperBound :: MOIPScheme -> A.Array Int Double ->  IO ()
-largeUpperBound moip ub = forM_ (A.assocs ub) $ \(i,vi) -> setUB (_objctrs moip A.! i) vi
+largeUpperBound :: MOIPScheme -> AU.UArray Int Double ->  IO ()
+largeUpperBound moip ub = forM_ (AU.assocs ub) $ \(i,vi) -> setUB (_objctrs moip A.! i) vi
 
-strictUpperBound :: MOIPScheme -> A.Array Int Double -> IO ()
-strictUpperBound moip ub = forM_ (A.assocs ub) $ \(i,vi) -> setUB (_objctrs moip A.! i) $ vi - 0.5
+strictUpperBound :: MOIPScheme -> AU.UArray Int Double -> IO ()
+strictUpperBound moip ub = forM_ (AU.assocs ub) $ \(i,vi) -> setUB (_objctrs moip A.! i) $ vi - 0.5
 
 omitConstraintOnObj :: MOIPScheme -> Int -> IO ()
 omitConstraintOnObj moip i= _model moip `remove`( _objctrs moip A.! i)
@@ -84,7 +85,7 @@ extractPoint moip = Point <$> mkVect moip (_objvars moip) <*> mkVect moip (_domv
 addWarmStart :: MOIPScheme -> Point -> IO MIPStart
 addWarmStart moip pt = do
     mipstart <- newIloObject moip :: IO MIPStart
-    zipWithM (editMIPStart mipstart) (A.elems $ _domvars moip) (A.elems $ _ptSol pt)
+    zipWithM (editMIPStart mipstart) (A.elems $ _domvars moip) (AU.elems $ _ptSol pt)
     addMIPStart (_cplex moip) mipstart
     pure mipstart
 {-| Wrapper - object creation -}
@@ -99,5 +100,5 @@ moipRemove moip a = _model moip `remove` a
 
 
 -- utils
-mkVect :: (IloVar a) => MOIPScheme -> A.Array Int a -> IO (A.Array Int Double)
-mkVect moip vars = A.listArray (1,length vars) . fmap (fromInteger. round) <$> forM (A.elems vars) (_cplex moip `getValue`)
+mkVect :: (IloVar a) => MOIPScheme -> A.Array Int a -> IO (AU.UArray Int Double)
+mkVect moip vars = AU.listArray (1,length vars) . fmap (fromInteger. round) <$> forM (A.elems vars) (_cplex moip `getValue`)

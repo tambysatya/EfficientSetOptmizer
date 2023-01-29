@@ -8,7 +8,7 @@ import SearchRegion.Archive
 import MOIP
 import IloCplex
 
-import qualified Data.Array as A
+import qualified Data.Array.Unboxed as A
 import qualified Data.List as L
 import Control.Lens
 import Data.Function

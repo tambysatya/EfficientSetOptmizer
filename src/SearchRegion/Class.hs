@@ -1,17 +1,17 @@
 {-# LANGUAGE FlexibleInstances, GeneralizedNewtypeDeriving #-}
 module SearchRegion.Class where
 
-import qualified Data.Array as A
+import qualified Data.Array.Unboxed as A
 import Data.Function
 
-type Bound = A.Array Int Double
+type Bound = A.UArray Int Double
 newtype Ideal = Ideal Bound
 newtype AntiIdeal = AntiIdeal Bound
 type GlobalBounds = (AntiIdeal, Ideal)
 
 
-data Point = Point {_ptPerf :: A.Array Int Double,
-                    _ptSol :: A.Array Int Double}
+data Point = Point {_ptPerf :: A.UArray Int Double,
+                    _ptSol :: A.UArray Int Double}
 
 newtype ProjDir = ProjDir {fromProjDir :: Int}
 	deriving (Eq, Num, Ord, A.Ix)
@@ -26,7 +26,7 @@ class Boundary a where
 instance Boundary Point where
     toBound = _ptPerf
 
-instance Boundary (A.Array Int Double) where
+instance Boundary (A.UArray Int Double) where
     toBound = id
 instance Boundary AntiIdeal where
     toBound (AntiIdeal yU) = yU

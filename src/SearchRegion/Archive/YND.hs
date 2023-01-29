@@ -6,7 +6,7 @@ import SearchRegion.Class
 
 import SearchRegion.Archive.XE
 
-import qualified Data.Array as A
+import qualified Data.Array.Unboxed as A
 
 {-| Archive containing the results of the optimization over the feasible set and the efficient set (phases 1 and 3)
     i.e over u_-l and over f-1(y*) 
