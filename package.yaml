@@ -44,7 +44,7 @@ ghc-options:
 
 library:
   source-dirs: src
-  other-extensions:    ForeignFunctionInterface, ConstrainedClassMethods
+  other-extensions:    ForeignFunctionInterface, ConstrainedClassMethods, StrictData
   c-sources:
       - cbits/IloBoolVar.cpp
       - cbits/IloCplex.cpp 

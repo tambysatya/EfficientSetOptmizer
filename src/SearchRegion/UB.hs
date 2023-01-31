@@ -28,9 +28,9 @@ instance Show HyperOpt where show (HyperOpt s) = "hyperopt="++ show s
 
 
 data UB = UB {_szU :: !Bound,
-              _szDefiningPoint :: (A.Array Int [(Point,SubOpt)]),
-              _szMaxProj :: ((Int,Double), ProjDir),
-              _szLB :: HyperOpt
+              _szDefiningPoint :: !(A.Array Int [(Point,SubOpt)]),
+              _szMaxProj :: !((Int,Double), ProjDir),
+              _szLB :: !HyperOpt
               }
 
 makeLenses ''UB

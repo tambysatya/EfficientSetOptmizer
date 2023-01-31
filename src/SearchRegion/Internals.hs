@@ -34,7 +34,8 @@ type SRUBT = StateT SRUB
 instance Show SRStats where show (SRStats nbcut nblb nbar updat child) = "rr=" ++ show nbcut ++ " lb=" ++ show nblb ++ " archive=" ++ show nbar ++ " updated=" ++ show updat ++ " children=" ++ show child
 
 mkSRUB :: GlobalBounds -> SRUB
-mkSRUB gbnds = SRUB [mkZone gbnds] mkSRStats (YArchive []) (XeArchive [])
+mkSRUB gbnds = SRUB [mkZone gbnds] mkSRStats (mkYArchive p) $ mkXeArchive p
+    where p = dimension (fst gbnds)
 
 mkSRStats :: SRStats
 mkSRStats = SRStats 0 0 0 0 0
@@ -51,7 +52,7 @@ updateSR gbnds zexp pdir Nothing _ = do
     -- TODO archive
     retM <- mapM (updateZoneNothing gbnds zexp pdir) sr 
     srUB .= catMaybes retM
-    -- yArchive %= insertYMdl (mkYMdl zexp Nothing)
+    yArchive %= insertYMdl zexp Nothing
     use srStats >>= \st -> logM ("\t\t [discard report] " ++ show st)
 
 updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval,lb_l)) estimation@(SubOpt s) = do --SRUB mdl $ sr >>= updateZoneJustWithRR gbnds zexp hopt pdir lb pt estimation
@@ -59,7 +60,7 @@ updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval,lb_l)) estimation@(Su
         sr <- use srUB
         ret <- forM sr $ \u -> updateZoneJustWithRR gbnds zexp pdir hopt lb_l (pt,ptval) estimation u
 
-        --yArchive %= insertYMdl (mkYMdl zexp (Just lb_l))
+        yArchive %= insertYMdl zexp (Just lb_l)
         srUB .= concat ret
         use srStats >>= \st -> logM ("\t\t [discard report] " ++ show st)
     --where lb_l = _ptPerf pt A.! l
@@ -80,7 +81,7 @@ updateZoneNothing gbnds (ExploredUB zexp) pdir  z
 updateZoneJustWithRR :: (MonadIO m) => GlobalBounds -> ExploredUB -> ProjDir -> HyperOpt -> Double -> (Point,SubOpt) -> SubOpt -> UB -> SRUBT m [UB]
 updateZoneJustWithRR gbnds zexp pdir hopt lb_l pt estimation@(SubOpt cur) ub = do
             newzones <- updateZoneJustReopt gbnds ub pt
-            retM <- forM newzones $ applyReductionRule zexp pdir hopt lb_l estimation
+            retM <- forM newzones $ applyReductionRule (A.elems $ proj pdir zexp) pdir hopt lb_l estimation
             yar <- use yArchive
             xar <- use xeArchive
     
@@ -108,17 +109,21 @@ updateZoneJustWithRR gbnds zexp pdir hopt lb_l pt estimation@(SubOpt cur) ub = d
 
 updateZoneJustReopt :: (MonadIO m) => GlobalBounds -> UB -> (Point,SubOpt) -> SRUBT m [UB]
 updateZoneJustReopt gbnds ub (pt,ptval) 
-        | pt `domS` ub = do 
+        | domSP = do 
                 --liftIO $ putStrLn $ "\t\t Splitting " ++ show ub  ++ " " ++ show (_szLB ub)
                 srStats.nbChildren += dimension ub
                 pure $ catMaybes [child gbnds pt ptval ub i | i <- ChildDir <$> [1..p]]
-        | pt `domL` ub = do -- pure [updateDefiningPoints pt ub]
+        | domLP = do -- pure [updateDefiningPoints pt ub]
                 --liftIO $ putStrLn $ "\t\t Updating " ++ show ub ++ " " ++ show (_szLB ub)
                 srStats.nbUpdated += 1
                 pure [updateDefiningPoints pt ptval ub]
 
         | otherwise = pure [ub]
   where p = dimension ub
+        perfs = _ptPerf pt
+        u = toBound ub
+        domLP = and [perfs A.! i <= toBound u A.! i | i <- [1..p]]
+        domSP = domLP && perfs /= u
 
 {-| Applies the reduction rule if a point have been found y have been found after looking for 
     improving component k by searching in direction l:
@@ -127,14 +132,14 @@ updateZoneJustReopt gbnds ub (pt,ptval)
     then, no point in child can improve the componnent k
  -}
 applyReductionRule :: (MonadIO m) =>
-           ExploredUB -- The zone
+           [Double] -- The projection that have been explored
            -> ProjDir -- The projection that have been explored
            -> HyperOpt
            -> Double -- lower bound on projdir
            -> SubOpt
            -> UB
            -> SRUBT m (Maybe UB)
-applyReductionRule (ExploredUB zexp) pdir (HyperOpt hopt) lb_l (SubOpt sopt) ub
+applyReductionRule exproj pdir (HyperOpt hopt) lb_l (SubOpt sopt) ub
         | localIdeal >= sopt = do
                 --liftIO $ putStrLn $ "\t\t discarding " ++ show ub ++ " [lb=" ++ show localIdeal++"]"
                 srStats.nbCutLB += 1
@@ -151,7 +156,9 @@ applyReductionRule (ExploredUB zexp) pdir (HyperOpt hopt) lb_l (SubOpt sopt) ub
         | projPred  = pure $ Just $ ub & szLB .~ (HyperOpt hopt)
         | otherwise = pure $  Just ub
    where l = fromProjDir pdir
-         projPred = proj pdir ub `domL` proj pdir zexp
+         --projPred = and [toBound ub A.! i <= toBound zexp A.! i | i <- [1..dimension ub], i /= l] --proj pdir ub `domL` proj pdir zexp
+         projPred = and $ zipWith (<=) [_szU ub A.! i | i <- L.delete l [1..p]] exproj
+         p = dimension ub
          (HyperOpt localIdeal) = _szLB ub
 
     
