@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving, BangPatterns #-}
 module SearchRegion.UB where
 
 import SearchRegion.Class
@@ -8,6 +8,7 @@ import qualified Data.Array as A
 import qualified Data.List as L
 import Data.Maybe
 import Data.Function
+import Control.DeepSeq
 
 maxbound :: Double
 maxbound = 100000000
@@ -26,6 +27,10 @@ newtype SubOpt = SubOpt {fromSubOpt :: Double}
 instance Show SubOpt where show (SubOpt s) = "subopt="++ show s
 instance Show HyperOpt where show (HyperOpt s) = "hyperopt="++ show s
 
+instance NFData ChildDir where rnf (ChildDir !x) = x `seq` ()
+instance NFData SubOpt where rnf (SubOpt !x) = x `seq`  ()
+instance NFData HyperOpt where rnf (HyperOpt !x) = x `seq` ()
+
 
 data UB = UB {_szU :: !Bound,
               _szDefiningPoint :: !(A.Array Int [(Point,SubOpt)]),
@@ -35,6 +40,7 @@ data UB = UB {_szU :: !Bound,
 
 makeLenses ''UB
 
+instance NFData UB where rnf (UB !a !b !c !d) = a `seq` rnf b `seq` rnf c `seq` rnf d
 
 newtype ExploredUB = ExploredUB {fromExplored :: UB }
 instance Show ExploredUB where

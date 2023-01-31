@@ -26,7 +26,7 @@ import qualified IloCplex as CPX
 
 import qualified Data.Array as A
 import qualified Data.Array.Unboxed as A
-import Control.Monad.State
+import Control.Monad.State.Strict
 
 class MOIP a where
     toMOIPScheme :: a -> MOIPScheme

@@ -1,8 +1,9 @@
-{-# LANGUAGE FlexibleInstances, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances, GeneralizedNewtypeDeriving, BangPatterns #-}
 module SearchRegion.Class where
 
 import qualified Data.Array.Unboxed as A
 import Data.Function
+import Control.DeepSeq
 
 type Bound = A.UArray Int Double
 newtype Ideal = Ideal Bound
@@ -10,15 +11,16 @@ newtype AntiIdeal = AntiIdeal Bound
 type GlobalBounds = (AntiIdeal, Ideal)
 
 
-data Point = Point {_ptPerf :: A.UArray Int Double,
-                    _ptSol :: A.UArray Int Double}
+data Point = Point {_ptPerf :: !(A.UArray Int Double),
+                    _ptSol :: !(A.UArray Int Double)}
 
 newtype ProjDir = ProjDir {fromProjDir :: Int}
 	deriving (Eq, Num, Ord, A.Ix)
 instance Show ProjDir where
     show (ProjDir p) = "proj=" ++ show p
 
-
+instance NFData ProjDir where rnf (ProjDir !v) = v `seq` ()
+instance NFData Point where rnf (Point !x !y) = x `seq` y `seq` ()
 
 class Boundary a where
     toBound :: a -> Bound

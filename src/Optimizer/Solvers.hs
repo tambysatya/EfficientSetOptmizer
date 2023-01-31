@@ -10,7 +10,7 @@ import qualified Data.List as L
 import Data.Maybe
 import Control.Lens
 import Data.Function
-import Control.Monad.State
+import Control.Monad.State.Strict
 
 
 

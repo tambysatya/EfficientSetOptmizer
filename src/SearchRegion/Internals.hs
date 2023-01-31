@@ -13,7 +13,8 @@ import qualified Data.List as L
 import Control.Lens
 import Data.Function
 import Data.Maybe
-import Control.Monad.State
+import Control.Monad.State.Strict
+import Control.DeepSeq
 
 
 
@@ -51,7 +52,7 @@ updateSR gbnds zexp pdir Nothing _ = do
     sr <- use srUB
     -- TODO archive
     retM <- mapM (updateZoneNothing gbnds zexp pdir) sr 
-    srUB .= catMaybes retM
+    srUB .= force (catMaybes retM)
     yArchive %= insertYMdl zexp Nothing
     use srStats >>= \st -> logM ("\t\t [discard report] " ++ show st)
 
@@ -61,7 +62,7 @@ updateSR gbnds zexp pdir@(ProjDir l) (Just (hopt,pt, ptval,lb_l)) estimation@(Su
         ret <- forM sr $ \u -> updateZoneJustWithRR gbnds zexp pdir hopt lb_l (pt,ptval) estimation u
 
         yArchive %= insertYMdl zexp (Just lb_l)
-        srUB .= concat ret
+        srUB .= force (concat ret)
         use srStats >>= \st -> logM ("\t\t [discard report] " ++ show st)
     --where lb_l = _ptPerf pt A.! l
 
@@ -93,7 +94,7 @@ updateZoneJustWithRR gbnds zexp pdir hopt lb_l pt estimation@(SubOpt cur) ub = d
                                                             Nothing -> do 
                                                                 let xreqM = checkXeMdl zi estimation xar
                                                                 case xreqM of
-                                                                    Nothing -> pure $ Just zi
+                                                                    Nothing -> pure $ Just $ force zi
                                                                     Just mdl -> do 
                                                                         srStats.nbArchive += 1
                                                                         --liftIO $ putStrLn $ "\t\t discarding " ++ show zi ++ " [Xarchive: " ++ show mdl ++ "]"
