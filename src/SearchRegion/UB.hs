@@ -1,12 +1,14 @@
-{-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving, BangPatterns #-}
 module SearchRegion.UB where
 
 import SearchRegion.Class
 import Control.Lens
+import qualified Data.Array.Unboxed as AU
 import qualified Data.Array as A
 import qualified Data.List as L
 import Data.Maybe
 import Data.Function
+import Control.DeepSeq
 
 maxbound :: Double
 maxbound = 100000000
@@ -25,15 +27,20 @@ newtype SubOpt = SubOpt {fromSubOpt :: Double}
 instance Show SubOpt where show (SubOpt s) = "subopt="++ show s
 instance Show HyperOpt where show (HyperOpt s) = "hyperopt="++ show s
 
+instance NFData ChildDir where rnf (ChildDir !x) = x `seq` ()
+instance NFData SubOpt where rnf (SubOpt !x) = x `seq`  ()
+instance NFData HyperOpt where rnf (HyperOpt !x) = x `seq` ()
+
 
 data UB = UB {_szU :: !Bound,
-              _szDefiningPoint :: ! (A.Array Int [(Point,SubOpt)]),
-              _szMaxProj :: ((Int,Double), ProjDir),
-              _szLB :: HyperOpt
+              _szDefiningPoint :: !(A.Array Int [(Point,SubOpt)]),
+              _szMaxProj :: !((Int,Double), ProjDir),
+              _szLB :: !HyperOpt
               }
 
 makeLenses ''UB
 
+instance NFData UB where rnf (UB !a !b !c !d) = a `seq` rnf b `seq` rnf c `seq` rnf d
 
 newtype ExploredUB = ExploredUB {fromExplored :: UB }
 instance Show ExploredUB where
@@ -47,7 +54,7 @@ instance Ord UB where
     compare = compare `on` (fst . _szMaxProj)
 
 instance Show UB where
-    show ub = show (A.elems $ _szU ub)
+    show ub = show (AU.elems $ _szU ub)
 
 instance Boundary ExploredUB where
     toBound (ExploredUB ub) = toBound ub
@@ -55,8 +62,9 @@ instance Boundary ExploredUB where
 
 
 mkZone :: GlobalBounds -> UB
-mkZone (yA,yI) = UB (fmap (+1) $ toBound yA) (A.listArray (1,p) $ take p $ repeat []) ((-p,0),ProjDir 2) $ HyperOpt (-maxbound)
-    where (1,p) = A.bounds $ toBound yA
+mkZone (yA,yI) = UB initBnd (A.listArray (1,p) $ take p $ repeat []) ((-p,0),ProjDir 2) $ HyperOpt (-maxbound)
+    where (1,p) = AU.bounds $ toBound yA
+          initBnd = AU.listArray (1,p) $ fmap (+1) (AU.elems $ toBound yA)
 
 
 
@@ -69,20 +77,20 @@ child :: GlobalBounds
        -> ChildDir -- The direction of the subdivision (index of the child) 
        -> Maybe UB -- The result if it stil has a componnent to explore 
 child (yA, ideal@(Ideal yI)) pt subopt ub (ChildDir cdir) 
-      | _ptPerf pt A.! cdir == yI A.! cdir = Nothing -- Ideal contributing point found
-      | and [not $ null $  _szDefiningPoint child A.! i |  -- All unbounded components have at least one defining point
+      | _ptPerf pt AU.! cdir == yI AU.! cdir = Nothing -- Ideal contributing point found
+      | and [not $ null $  _szDefiningPoint child AU.! i |  -- All unbounded components have at least one defining point
                       i <- [1..p], 
-                      childub A.! i /= (toBound yA A.! i + 1)] 
+                      childub AU.! i /= (toBound yA AU.! i + 1)] 
                 = Just child
       | otherwise = Nothing
-    where p = snd $ A.bounds childub
-          childub = _szU ub A.// [(cdir, _ptPerf pt A.! cdir)]
+    where p = snd $ AU.bounds childub
+          childub = _szU ub AU.// [(cdir, _ptPerf pt AU.! cdir)]
           --childmaxproj = (projVal yA yI ub $ ProjDir cdir, ProjDir cdir)  --projdir = child dir
           childmaxproj = computeMaxProj (yA,ideal) childub  --hypervolume
           childdefpts = A.array (1,p) $ (cdir,[(pt,subopt)]):[(i, validPts) | i <- [1..p],
                                                                               i /= cdir, 
                                                                               let pts = _szDefiningPoint ub A.! i
-                                                                                  validPts = [(pti,vi) | (pti,vi) <- pts, _ptPerf pti A.! cdir < _ptPerf pt A.! cdir]]
+                                                                                  validPts = [(pti,vi) | (pti,vi) <- pts, _ptPerf pti AU.! cdir < _ptPerf pt AU.! cdir]]
           child = ub & szU .~ childub
                      & szDefiningPoint .~ childdefpts
                      & szMaxProj .~ childmaxproj
@@ -94,15 +102,15 @@ child (yA, ideal@(Ideal yI)) pt subopt ub (ChildDir cdir)
 
              
 computeMaxProj :: GlobalBounds -> Bound -> ((Int,Double), ProjDir)
-computeMaxProj (yA,(Ideal yI)) ub = L.minimumBy (compare `on` fst) [(projVal yA yI ub $ ProjDir i, ProjDir i)  | i <- [1..p], ub A.! i /= (toBound yA A.! i + 1)]
-    where (_,p) = A.bounds ub
+computeMaxProj (yA,(Ideal yI)) ub = L.minimumBy (compare `on` fst) [(projVal yA yI ub $ ProjDir i, ProjDir i)  | i <- [1..p], ub AU.! i /= (toBound yA AU.! i + 1)]
+    where (_,p) = AU.bounds ub
           -- projVal is negated since we manipulates min heap
 projVal yA yI ub (ProjDir i) = --negate $ sum $ logBase 2 <$> zipWith (-) (A.elems $ proj i yA) (A.elems $ proj i ub)
         (negate $ p-length definedComp,
        --  negate $ sum $ [logBase 2 $ (toBound yA A.! j) - (toBound ub A.! j)  | j <- definedComp, j /= i]) -- FAUX
          -- negate $ sum $ [logBase 2 $ (toBound ub A.! j) - (toBound yI A.! j)  | j <- definedComp, j /= i])  -- RE FAUX
-         negate $ sum $ [logBase 2 $ (toBound ub A.! j) - (toBound yI A.! j)  | j <- [1..p], j /= i]) 
-    where definedComp = [j | j <- [1..p], toBound ub A.! j < toBound yA A.! j]
+         negate $ sum $ [logBase 2 $ (toBound ub AU.! j) - (toBound yI AU.! j)  | j <- [1..p], j /= i]) 
+    where definedComp = [j | j <- [1..p], toBound ub AU.! j < toBound yA AU.! j]
           p = dimension ub
 
 
@@ -110,14 +118,14 @@ projVal yA yI ub (ProjDir i) = --negate $ sum $ logBase 2 <$> zipWith (-) (A.ele
 updateDefiningPoints :: Point -> SubOpt -> UB -> UB
 updateDefiningPoints pt ptval zone = foldr f zone $ ProjDir <$> [1..dimension zone]
     where f pdir@(ProjDir i) acc  
-                | proj pdir pt `domS` proj pdir zone = acc & szDefiningPoint . ix i %~ ((pt,ptval):) 
+                | proj pdir pt `lDomS` proj pdir zone = acc & szDefiningPoint . ix i %~ ((pt,ptval):) 
                 | otherwise = acc
 
 childKHasValidDefPoint (AntiIdeal yA,_) pt k z = and  [not $ null $ validPts | 
                                     i <- [1..p],
                                         i /= k,
-                                        _szU z A.! i /= yA A.! i,
+                                        _szU z AU.! i /= yA AU.! i,
                                         let pts = _szDefiningPoint z A.! i
-                                            validPts = [pti | (pti,_) <- pts, _ptPerf pti A.! k < _ptPerf pt A.! k]]
-        where (_,p) = A.bounds $ _szU z
+                                            validPts = [pti | (pti,_) <- pts, _ptPerf pti AU.! k < _ptPerf pt AU.! k]]
+        where (_,p) = AU.bounds $ _szU z
 

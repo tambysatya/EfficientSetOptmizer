@@ -11,12 +11,14 @@ import MOIP
 import IloCplex
 
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Lens
 import qualified Data.Array as A
 import qualified Data.List as L
 import Data.Function
 import Data.Maybe
+
+import Control.DeepSeq
 
 import qualified Data.Set as S
 
@@ -37,10 +39,11 @@ optimize = do
             let zexp = selectZone sr
                 (_,pdir) = _szMaxProj $ fromExplored zexp
                 (ProjDir l) = pdir
-                srsize = srSize sr
+                -- srsize' = srLen sr -- TODO
+                srsize = _srSize sr
             --let (SRUB sr') = sr                    
             --logM $ "SR=" ++ show [(zi,_szMaxProj zi) | zi <- sr']
-            logM $ "exploring: " ++ show zexp ++  " " ++ show pdir ++ " " ++ show (_szLB $ fromExplored zexp) ++ " hv=" ++ show (fst $ _szMaxProj $ fromExplored zexp) ++ " size=" ++ show srsize  ++ " estimation=" ++ show estimation ++ " |N|=" ++ show (S.size ndpt)
+            logM $ "exploring: " ++ show zexp ++  " " ++ show pdir ++ " " ++ show (_szLB $ fromExplored zexp) ++ " hv=" ++ show (fst $ _szMaxProj $ fromExplored zexp) ++ " size=" ++ show srsize ++ {- "("++ show srsize' ++ ")" ++ -} " estimation=" ++ show estimation ++ " |N|=" ++ show (S.size ndpt)
             stats.lmax %= max srsize
             stats.ltotal += srsize
             -- DEBUG
@@ -55,7 +58,7 @@ optimize = do
                 then do
                     logM $ "\t X [compute lb]"
                     stats.nbInfeasible += 1
-                    searchRegion.xeArchive %= insertXeMdl zexp  Nothing
+                    searchRegion.xeArchive %= force . insertXeMdl zexp  Nothing
                     zoom searchRegion $ updateSR gbnds zexp pdir Nothing estimation
                     srstats <- use $ searchRegion.srStats
                     stats.discarded %= (srstats<>)
@@ -88,7 +91,7 @@ optimize = do
                     
 
                     curval <- use bestVal
-                    searchRegion.xeArchive %= insertXeMdl zexp  (Just lb)
+                    searchRegion.xeArchive %= force . insertXeMdl zexp  (Just lb)
                     
                     -- Search region is updated with the lowerbound obtained from the EXPLORATION (and not the non-dominated point) since it does not
                     -- necessarily improves the estimation

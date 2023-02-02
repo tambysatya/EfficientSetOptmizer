@@ -25,7 +25,8 @@ import SearchRegion.Class
 import qualified IloCplex as CPX
 
 import qualified Data.Array as A
-import Control.Monad.State
+import qualified Data.Array.Unboxed as A
+import Control.Monad.State.Strict
 
 class MOIP a where
     toMOIPScheme :: a -> MOIPScheme
@@ -66,9 +67,9 @@ omitConstraintOnObj moip i = MOIP.omitConstraintOnObj (toMOIPScheme moip)  i
 addConstraintOnObj :: (MOIP a) =>  a -> Int -> IO ()
 addConstraintOnObj moip i = MOIP.addConstraintOnObj (toMOIPScheme moip) i
 
-strictUpperBound :: MOIP a => a -> A.Array Int Double -> IO ()
+strictUpperBound :: MOIP a => a -> Bound -> IO ()
 strictUpperBound moip bnd = MOIP.strictUpperBound (toMOIPScheme moip) bnd
-largeUpperBound :: MOIP a => a -> A.Array Int Double -> IO ()
+largeUpperBound :: MOIP a => a -> Bound -> IO ()
 largeUpperBound moip bnd = MOIP.largeUpperBound (toMOIPScheme moip) bnd
 
 
@@ -83,14 +84,14 @@ solveFromPoint :: MOIP a => a -> Point -> IO Point
 solveFromPoint moip pt = MOIP.solveFromPoint (toMOIPScheme moip) pt
 
 
-exploreStrict :: MOIP a => a -> A.Array Int Double -> Maybe Point -> IO (Maybe Point)
+exploreStrict :: MOIP a => a -> Bound -> Maybe Point -> IO (Maybe Point)
 exploreStrict moip ub ptM = do
     strictUpperBound moip ub
     -- moip `exportModel` "exploring.lp"
     case ptM of
         Nothing -> solve moip
         Just pt -> Just <$> solveFromPoint moip pt
-exploreLarge :: MOIP a => a -> A.Array Int Double -> Maybe Point -> IO (Maybe Point)
+exploreLarge :: MOIP a => a -> Bound -> Maybe Point -> IO (Maybe Point)
 exploreLarge moip ub ptM = do
     largeUpperBound moip ub
     case ptM of
@@ -140,11 +141,11 @@ addConstraintOnObjM i = do
     moip <- gets toMOIPScheme
     liftIO $ MOIP.addConstraintOnObj moip i  
 
-largeUpperBoundM :: (MOIP a, MonadIO m) => A.Array Int Double -> StateT a m ()
+largeUpperBoundM :: (MOIP a, MonadIO m) => Bound -> StateT a m ()
 largeUpperBoundM bnd = do
     moip <- gets toMOIPScheme
     liftIO $ MOIP.largeUpperBound moip bnd
-strictUpperBoundM :: (MOIP a, MonadIO m) => A.Array Int Double -> StateT a m ()
+strictUpperBoundM :: (MOIP a, MonadIO m) => Bound -> StateT a m ()
 strictUpperBoundM bnd = do
     moip <- gets toMOIPScheme
     liftIO $ MOIP.strictUpperBound moip bnd
@@ -163,11 +164,11 @@ solveFromPointM pt = do
     moip <- gets toMOIPScheme
     liftIO $ MOIP.solveFromPoint moip pt
 
-exploreStrictM :: (MOIP a, MonadIO m) => A.Array Int Double -> Maybe Point -> StateT a m (Maybe Point)
+exploreStrictM :: (MOIP a, MonadIO m) => Bound -> Maybe Point -> StateT a m (Maybe Point)
 exploreStrictM ub ptM = do
     moip <- get
     liftIO $ exploreStrict moip ub ptM
-exploreLargeM :: (MOIP a, MonadIO m) => A.Array Int Double -> Maybe Point -> StateT a m (Maybe Point)
+exploreLargeM :: (MOIP a, MonadIO m) => Bound -> Maybe Point -> StateT a m (Maybe Point)
 exploreLargeM ub ptM = do
     moip <- get
     liftIO $ exploreLarge moip ub ptM

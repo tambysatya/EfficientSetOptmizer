@@ -8,9 +8,9 @@ import IloCplex (IloEnv)
 
 import qualified Data.Set as S
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Lens
-import qualified Data.Array as A
+import qualified Data.Array.Unboxed as A
 import qualified Data.List as L
 import Data.Function
 import Data.Maybe

@@ -16,9 +16,9 @@ import MOIP
 import SearchRegion
 import qualified IloCplex as CPX
 
-import qualified Data.Array as A
+import qualified Data.Array.Unboxed as A
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.State.Strict
 
 
 data FunCoefs = FunCoefs {_fDomCoefs :: [(Int,Double)],

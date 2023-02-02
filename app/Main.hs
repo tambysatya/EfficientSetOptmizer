@@ -18,13 +18,17 @@ mainRandom' = do
         ["KP", insfile, logfile] -> do
                 dom@(objs,a,b,c) <- read1KS insfile
                 let coefs = foldr1 (zipWith (+)) objs
-                    --funcoefs = FunCoefs $ zip [1..] $ fmap negate coefs
-                    --funcoefs = FunCoefs [] $ zip [1..] $ take p (repeat (-1))
                     funcoefs = FunCoefs (zip [1..] (last objs)) []
                     dom' = (init objs,a,b,c)
-                --val <- runAlgorithm "nbdef-subopt-childhv-arfix" "kp.log" env dom funcoefs
-                runAlgorithm "refactor-noar-fixLeak-archive" logfile env dom' funcoefs
-        _ -> putStrLn "syntax: ./main KP instance logfile"
+                runAlgorithm "refactor-noar-O2" logfile env dom' funcoefs
+        ["AP", insfile, logfile] -> do
+                dom@(objs,a,b,c) <- readVC insfile
+                let coefs = foldr1 (zipWith (+)) objs
+                    funcoefs = FunCoefs (zip [1..] (last objs)) []
+                    dom' = (init objs,a,b,c)
+                runAlgorithm "refactor-noar-O2" logfile env dom' funcoefs
+
+        _ -> putStrLn "syntax: ./main KP|AP instance logfile"
 
 
 
