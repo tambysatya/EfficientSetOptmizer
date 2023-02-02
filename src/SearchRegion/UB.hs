@@ -118,7 +118,7 @@ projVal yA yI ub (ProjDir i) = --negate $ sum $ logBase 2 <$> zipWith (-) (A.ele
 updateDefiningPoints :: Point -> SubOpt -> UB -> UB
 updateDefiningPoints pt ptval zone = foldr f zone $ ProjDir <$> [1..dimension zone]
     where f pdir@(ProjDir i) acc  
-                | proj pdir pt `domS` proj pdir zone = acc & szDefiningPoint . ix i %~ ((pt,ptval):) 
+                | proj pdir pt `lDomS` proj pdir zone = acc & szDefiningPoint . ix i %~ ((pt,ptval):) 
                 | otherwise = acc
 
 childKHasValidDefPoint (AntiIdeal yA,_) pt k z = and  [not $ null $ validPts | 

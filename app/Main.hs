@@ -20,13 +20,13 @@ mainRandom' = do
                 let coefs = foldr1 (zipWith (+)) objs
                     funcoefs = FunCoefs (zip [1..] (last objs)) []
                     dom' = (init objs,a,b,c)
-                runAlgorithm "refactor-noar" logfile env dom' funcoefs
+                runAlgorithm "refactor-noar-O2" logfile env dom' funcoefs
         ["AP", insfile, logfile] -> do
                 dom@(objs,a,b,c) <- readVC insfile
                 let coefs = foldr1 (zipWith (+)) objs
                     funcoefs = FunCoefs (zip [1..] (last objs)) []
                     dom' = (init objs,a,b,c)
-                runAlgorithm "refactor-noar" logfile env dom' funcoefs
+                runAlgorithm "refactor-noar-O2" logfile env dom' funcoefs
 
         _ -> putStrLn "syntax: ./main KP|AP instance logfile"
 

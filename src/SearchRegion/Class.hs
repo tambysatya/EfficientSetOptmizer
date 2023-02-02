@@ -35,15 +35,27 @@ instance Boundary AntiIdeal where
 
 dimension :: Boundary a => a -> Int
 dimension z = snd $ A.bounds $ toBound z
+{-# INLINE dimension #-}
 
-proj :: (Boundary a) => ProjDir -> a -> Bound -- TODO linear type ?
-proj (ProjDir k) z = A.listArray (1, dimension z - 1) [toBound z A.! i | i <- [1..dimension z], i /= k]
+proj :: (Boundary a) => ProjDir -> a -> [Double]-- TODO linear type ?
+proj (ProjDir k) z = [toBound z A.! i | i <- [1..dimension z], i /= k]
+{-# INLINE proj #-}
 
 domS :: (Boundary a, Boundary b) => a -> b -> Bool
 x `domS` y = and $ zipWith (<) (A.elems $ toBound x) (A.elems $ toBound y)
+{-# INLINE domS #-}
 
 domL :: (Boundary a, Boundary b) => a -> b -> Bool
 x `domL` y = and $ zipWith (<=) (A.elems $ toBound x) (A.elems $ toBound y)
+{-# INLINE domL #-}
+
+lDomL :: [Double] -> [Double] -> Bool
+x `lDomL` y = and $ zipWith (<=) x y
+{-# INLINE lDomL #-}
+lDomS :: [Double] -> [Double] -> Bool
+x `lDomS` y = and $ zipWith (<) x y
+{-# INLINE lDomS #-}
+
 
 instance Show Point where
     show = show . A.elems . _ptPerf
