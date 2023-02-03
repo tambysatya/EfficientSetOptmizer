@@ -2,7 +2,7 @@
 module MOIP.Class
 
 (
-MOIP(..), deleteMOIP, exportModel, exportModelM
+Point(..), MOIP(..), deleteMOIP, exportModel, exportModelM
 ,newIloObject, newIloObjectM, add, addM, remove, removeM
 ,setObjectiveCoef, setObjectiveCoefM, setMinimize, setMinimizeM, setMaximize, setMaximizeM
 ,omitConstraintOnObj, omitConstraintOnObjM, addConstraintOnObj, addConstraintOnObjM
