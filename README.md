@@ -15,7 +15,7 @@ sed -i 's,/home/sat/cplex2210,/path/to/cplex,g' package.yaml
 Install the [haskell stack suite](https://docs.haskellstack.org/en/stable/). This is probably packaged on your linux distribution.
 
 ```
-cd EfficinetSetOptimizer
+cd EfficientSetOptimizer
 stack install
 
 ```
