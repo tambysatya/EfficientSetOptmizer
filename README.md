@@ -33,5 +33,5 @@ The lines are the number of objectives, the number of items, the maximum capacit
 
 ## MOAP instances
 
-The lines are The lines are the number of objectives, the number of machines (square root of the number of decision variables) and a coma-separated list of matrices, ie coma-separated list of coma-separated list, denoting each objective coefficient.
+The lines are the number of objectives, the number of machines (square root of the number of decision variables) and a coma-separated list of matrices, ie coma-separated list of coma-separated list, denoting each objective coefficient.
 
